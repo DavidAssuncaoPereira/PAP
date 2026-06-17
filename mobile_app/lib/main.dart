@@ -33,6 +33,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   String _temperatura = "--";
   String _luminosidade = "--";
+  String _humidade = "--";
   String _status = "A aguardar dados...";
   Timer? _timer;
 
@@ -63,24 +64,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // Fazer parse do HTML retornado pelo ESP32
         var document = parse(response.body);
 
-        // Extrair texto dos blocos de dados
-        // A estrutura HTML no ESP32: <div class='dado'>️ Temperatura: <strong>25.0 °C</strong></div>
         var divs = document.getElementsByClassName('dado');
 
-        if (divs.length >= 2) {
-          String tempRaw = divs[0].text; // Exemplo: "️ Temperatura: 25.0 °C"
-          String lightRaw = divs[1].text; // Exemplo: "☀️ Luminosidade: 120 lx"
+        if (divs.length >= 3) {
+          String tempRaw = divs[0].text;
+          String lightRaw = divs[1].text;
+          String humRaw = divs[2].text;
 
           // Extrair apenas os valores numéricos
-          RegExp tempRegExp = RegExp(r"Temperatura:\s*([0-9.]+)\s*°C");
+          RegExp tempRegExp = RegExp(r"Temperatura:\s*([-0-9.]+)\s*°C");
           RegExp lightRegExp = RegExp(r"Luminosidade:\s*([0-9.]+)\s*lx");
+          RegExp humRegExp = RegExp(r"Humidade:\s*([0-9.]+)\s*%");
 
           var tempMatch = tempRegExp.firstMatch(tempRaw);
           var lightMatch = lightRegExp.firstMatch(lightRaw);
+          var humMatch = humRegExp.firstMatch(humRaw);
 
           setState(() {
             if (tempMatch != null) _temperatura = tempMatch.group(1)!;
             if (lightMatch != null) _luminosidade = lightMatch.group(1)!;
+            if (humMatch != null) _humidade = humMatch.group(1)!;
             _status = "Conectado";
           });
         } else {
@@ -152,6 +155,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         children: [
                           const Text("Luminosidade", style: TextStyle(fontSize: 16, color: Colors.grey)),
                           Text("$_luminosidade lx", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Cartão de Humidade do Solo
+              Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 30.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.water_drop, color: Colors.blueAccent, size: 40),
+                      const SizedBox(width: 15),
+                      Column(
+                        children: [
+                          const Text("Humidade do Solo", style: TextStyle(fontSize: 16, color: Colors.grey)),
+                          Text("$_humidade %", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
                         ],
                       )
                     ],
