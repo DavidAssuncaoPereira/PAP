@@ -53,6 +53,7 @@ class PlantMonitorApp(ctk.CTk):
             # We add a short timeout so the UI doesn't hang forever if the ESP32 is offline
             response = requests.get(URL, timeout=3)
             response.raise_for_status()
+            response.encoding = 'utf-8'
             html = response.text
 
             # The ESP32 returns HTML, we need to extract the values using regex
