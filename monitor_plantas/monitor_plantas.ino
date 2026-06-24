@@ -129,19 +129,25 @@ void enviarHistoricoJSON() {
 // =====================================================
 void enviarPaginaWeb() {
   String html = "<!DOCTYPE html><html>";
-  html += "<head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>";
+  html += "<head><link rel='icon' type='image/png' href='data:image/png;base64,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'><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>";
   html += "<title>Monitor de Plantas</title>";
-  html += "<style>body { font-family: Arial, sans-serif; text-align: center; background-color: #f0f8ff; padding: 20px; }";
-  html += "h1 { color: #2e8b57; } .dado { font-size: 24px; margin: 10px; padding: 10px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }";
-  html += "canvas { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 20px; max-width: 100%; }</style>";
+  html += "<style>body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align: center; background-color: #2b2b2b; padding: 20px; color: #f0f0f0; }";
+  html += "h1 { color: #4CAF50; font-weight: 600; margin-bottom: 30px; }";
+  html += ".container { display: flex; flex-direction: column; align-items: center; gap: 15px; max-width: 600px; margin: 0 auto; }";
+  html += ".dado { font-size: 20px; width: 100%; box-sizing: border-box; padding: 20px; background: #3c3f41; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: transform 0.2s ease, box-shadow 0.2s ease; border-left: 5px solid #4CAF50; }";
+  html += ".dado:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.3); }";
+  html += ".dado strong { color: #ffffff; font-size: 26px; display: block; margin-top: 5px; }";
+  html += "canvas { background: #3c3f41; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); margin-top: 30px; max-width: 100%; }</style>";
   html += "<meta http-equiv='refresh' content='10'>"; // Atualiza a página a cada 10 segundos
   html += "</head><body>";
   html += "<h1>Estação de Monitorização</h1>";
-  html += "<div class='dado'>️ Temperatura: <strong>" + String(temperaturaC, 1) + " °C</strong></div>";
-  html += "<div class='dado'>☀️ Luminosidade: <strong>" + String(luminosidadeLux, 1) + " lx</strong></div>";
-  html += "<div class='dado'>💧 Humidade: <strong>" + String(humidadePercent) + " %</strong></div>";
+  html += "<div class='container'>";
+  html += "<div class='dado' style='border-left-color: #ff5555;'>Temperatura <strong>" + String(temperaturaC, 1) + " °C</strong></div>";
+  html += "<div class='dado' style='border-left-color: #f39c12;'>Luminosidade <strong>" + String(luminosidadeLux, 1) + " lx</strong></div>";
+  html += "<div class='dado' style='border-left-color: #55aaff;'>Humidade do Solo <strong>" + String(humidadePercent) + " %</strong></div>";
 
   html += "<canvas id='chart' width='400' height='200'></canvas>";
+  html += "</div>";
   html += "<script>";
   html += "fetch('/history').then(r=>r.json()).then(data=>{";
   html += "if(data.length===0) return;";
@@ -150,17 +156,21 @@ void enviarPaginaWeb() {
   html += "const maxTemp = Math.max(...data.map(d=>d.temp), 40);";
   html += "const maxHum = 100;";
   html += "ctx.clearRect(0,0,w,h);";
-  html += "ctx.lineWidth=2;";
+  html += "ctx.lineWidth=3;";
   html += "const stepX = w / Math.max(data.length - 1, 1);";
 
-  html += "ctx.beginPath(); ctx.strokeStyle='red';";
+  html += "ctx.strokeStyle='rgba(255, 255, 255, 0.1)'; ctx.beginPath();";
+  html += "for(let i=0; i<=h; i+=50) { ctx.moveTo(0, i); ctx.lineTo(w, i); }";
+  html += "ctx.stroke();";
+
+  html += "ctx.beginPath(); ctx.strokeStyle='#ff5555';";
   html += "data.forEach((d,i)=>{";
   html += "const x = i * stepX;";
   html += "const y = h - (d.temp / maxTemp * h);";
   html += "if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);";
   html += "}); ctx.stroke();";
 
-  html += "ctx.beginPath(); ctx.strokeStyle='blue';";
+  html += "ctx.beginPath(); ctx.strokeStyle='#55aaff';";
   html += "data.forEach((d,i)=>{";
   html += "const x = i * stepX;";
   html += "const y = h - (d.hum / maxHum * h);";
