@@ -7,3 +7,7 @@ mobile_app/web/
 mobile_app/build/
 mobile_app/.dart_tool/
 bin/
+
+mobile_app/app/build
+mobile_app/.gradle
+mobile_app/local.properties
