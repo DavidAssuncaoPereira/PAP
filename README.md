@@ -4,13 +4,23 @@ Projeto de Aptidão Profissional focado na monitorização das condições de pl
 
 ---
 
+## Como Tudo Funciona
+
+O projeto é constituído por três componentes principais que trabalham em conjunto:
+
+1. **ESP32 (Backend / Hardware):** Lê dados dos sensores, apresenta num ecrã LCD e atua como Ponto de Acesso (Access Point) Wi-Fi (SSID: `ESP32-PLANTAS`, Senha: `12345678`). Ele aloja um servidor web simples com uma página HTML com as informações e um endpoint JSON para histórico.
+2. **Desktop App:** Uma aplicação em Python (usando CustomTkinter, Matplotlib e Plyer) que se liga à rede do ESP32, lê a página HTML gerada ou dados JSON para exibir de forma intuitiva. Contém um ecrã de login de arranque.
+3. **Mobile App:** Aplicação nativa para Android escrita em Kotlin (usando Jetpack Compose). Desempenha um papel semelhante à aplicação desktop para leitura dos dados, e também conta com sistema de login na entrada e integração para notificações locais (como alertas de planta desidratada).
+
+*Nota: Em ambas as aplicações (Desktop e Mobile) existe um ecrã de login que utiliza por predefinição a palavra-passe **`admin`**.*
+
+---
+
 ## Estrutura do Projeto
 
-O projeto está dividido em três componentes principais:
-
-- `monitor_plantas/` - Código em C++ para o microcontrolador ESP32 (leitura dos sensores, atualização do LCD e servidor web).
-- `desktop_app/` - Aplicação Desktop (Windows/Linux) desenvolvida em Python.
-- `mobile_app/` - Aplicação Mobile (Android) desenvolvida em Flutter.
+- `monitor_plantas/` - Código em C++ para o microcontrolador ESP32.
+- `desktop_app/` - Aplicação Desktop em Python.
+- `mobile_app/` - Aplicação Mobile (Android) nativa desenvolvida em Kotlin / Jetpack Compose.
 
 ---
 
@@ -18,69 +28,115 @@ O projeto está dividido em três componentes principais:
 
 ### 1. Configurar o ESP32 (`monitor_plantas/`)
 
-O código para o ESP32 cria um ponto de acesso Wi-Fi próprio e inicia um servidor Web em `192.168.4.1`, além de atualizar fisicamente o ecrã LCD com dados sobre temperatura, luz e humidade.
+**Dependências necessárias (Arduino IDE ou arduino-cli):**
+`LiquidCrystal_PCF8574`, `OneWire`, `DallasTemperature`, `BH1750`
 
-**Como compilar e instalar no ESP32:**
-1. Instala o [Arduino IDE](https://www.arduino.cc/en/software) ou usa o `arduino-cli`.
-2. Adiciona o suporte para as placas ESP32 nas Preferências do Arduino IDE (usando o link do Boards Manager da Espressif).
-3. Instala as seguintes bibliotecas através do Gestor de Bibliotecas:
-   - `LiquidCrystal_PCF8574`
-   - `OneWire`
-   - `DallasTemperature`
-   - `BH1750`
-4. Liga o teu ESP32 ao computador.
-5. Abre o ficheiro `monitor_plantas.ino` no Arduino IDE.
-6. Seleciona a porta COM e o modelo da tua placa ESP32 (ex: "DOIT ESP32 DEVKIT V1").
-7. Clica em **Carregar (Upload)**.
-8. Uma vez carregado, o ESP32 vai criar a rede Wi-Fi `ESP32-PLANTAS` com a senha `12345678`.
+#### Para Windows
+1. Instalar o Arduino IDE.
+2. Nas preferências, adicionar o gestor de placas para ESP32 e instalar o core correspondente.
+3. Instalar as bibliotecas referidas acima via Gestor de Bibliotecas.
+4. Ligar o ESP32 ao computador por USB, e abrir o ficheiro `monitor_plantas/monitor_plantas.ino`.
+5. Escolher a porta COM correta e o modelo (ex: "DOIT ESP32 DEVKIT V1") e clicar em "Upload".
+
+#### Para Linux
+Utilizando o `arduino-cli`:
+1. Instalar `arduino-cli` (por exemplo: `curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh`) e adicionar ao `PATH`.
+2. Configurar o core ESP32:
+   ```bash
+   arduino-cli config init
+   arduino-cli core update-index --additional-urls https://dl.espressif.com/dl/package_esp32_index.json
+   arduino-cli core install esp32:esp32 --additional-urls https://dl.espressif.com/dl/package_esp32_index.json
+   ```
+3. Instalar bibliotecas:
+   ```bash
+   arduino-cli lib install "LiquidCrystal_PCF8574" "OneWire" "DallasTemperature" "BH1750"
+   ```
+4. Compilar e dar upload (substituir `<PORTA>` por ex. `/dev/ttyUSB0`):
+   ```bash
+   cd monitor_plantas
+   arduino-cli compile --fqbn esp32:esp32:esp32 monitor_plantas.ino
+   arduino-cli upload -p <PORTA> --fqbn esp32:esp32:esp32 monitor_plantas.ino
+   ```
+
+**Aviso:** Após o upload, o ESP32 iniciará a rede Wi-Fi `ESP32-PLANTAS` (Senha: `12345678`).
 
 ---
 
 ### 2. Aplicação Desktop (`desktop_app/`)
 
-Aplicação gráfica em Python (utilizando a biblioteca `customtkinter`) que comunica com o ESP32 e apresenta os dados de forma moderna.
+**Pré-requisitos:** Python 3 instalado no computador e ligação à rede Wi-Fi `ESP32-PLANTAS`.
+**Senha de Login:** `admin`
 
-**Como instalar e executar no Windows/Linux:**
-1. Certifica-te de que tens o **Python 3** instalado no teu computador.
-2. Abre o terminal (ou a Linha de Comandos) e navega até à pasta `desktop_app`:
+#### Para Windows
+1. Abrir a Linha de Comandos (CMD ou PowerShell).
+2. Entrar na pasta do projeto:
+   ```cmd
+   cd desktop_app
+   ```
+3. Instalar as dependências:
+   ```cmd
+   pip install -r requirements.txt
+   ```
+4. Executar a aplicação:
+   ```cmd
+   python main.py
+   ```
+
+#### Para Linux
+1. Abrir o terminal.
+2. Entrar na pasta do projeto:
    ```bash
    cd desktop_app
    ```
-3. Instala as dependências necessárias:
+3. Instalar as dependências:
    ```bash
-   pip install -r requirements.txt
+   pip3 install -r requirements.txt
    ```
-4. **Passo crítico:** Conecta o teu computador à rede Wi-Fi que o ESP32 acabou de criar (Nome: `ESP32-PLANTAS`, Senha: `12345678`).
-5. Executa a aplicação:
+4. Executar a aplicação:
    ```bash
-   python main.py
+   python3 main.py
    ```
-6. A janela irá abrir e, a cada 5 segundos, atualizará a Temperatura, Luminosidade e Humidade do Solo lidas pelo ESP32.
 
 ---
 
 ### 3. Aplicação Mobile (`mobile_app/`)
 
-Aplicação desenhada em Flutter que exporta um APK para Android, fornecendo um formato "Dashboard" rápido para ver o estado da tua planta.
+Aplicação nativa Android em Kotlin / Jetpack Compose. (Nota: esta aplicação não é em Flutter).
 
-**Como compilar e executar no Android:**
-1. Instala o [Flutter SDK](https://docs.flutter.dev/get-started/install) e o Android Studio.
-2. Abre um terminal e navega para a pasta `mobile_app`:
+**Pré-requisitos:**
+Ter o Java JDK e Android SDK instalados. O telemóvel (ou emulador) onde testar precisa estar ligado à rede Wi-Fi `ESP32-PLANTAS`.
+**Senha de Login:** `admin`
+
+#### Para Windows
+1. Abrir a Linha de Comandos na pasta da app:
+   ```cmd
+   cd mobile_app
+   ```
+2. Compilar e instalar num telemóvel Android conectado por USB (com Depuração USB ativada):
+   ```cmd
+   gradlew.bat installDebug
+   ```
+   *Em alternativa, para apenas gerar o APK sem instalar:*
+   ```cmd
+   gradlew.bat assembleDebug
+   ```
+   O APK ficará guardado em `app\build\outputs\apk\debug\app-debug.apk`.
+
+#### Para Linux
+1. Abrir o terminal na pasta da app:
    ```bash
    cd mobile_app
    ```
-3. Instala as dependências do Dart:
+2. Dar permissão de execução ao wrapper (se necessário):
    ```bash
-   flutter pub get
+   chmod +x gradlew
    ```
-4. Conecta um dispositivo Android ao teu PC via USB (com o modo Depuração USB ativado).
-5. **Passo crítico:** Liga o telemóvel à rede Wi-Fi `ESP32-PLANTAS` (Senha: `12345678`).
-6. Para testar e correr a aplicação no telemóvel:
+3. Compilar e instalar num telemóvel conectado por USB:
    ```bash
-   flutter run
+   ./gradlew installDebug
    ```
-7. Para criares o ficheiro `.apk` instalável para partilhar com outras pessoas:
+   *Em alternativa, para apenas gerar o APK:*
    ```bash
-   flutter build apk
+   ./gradlew assembleDebug
    ```
-8. O ficheiro APK final estará localizado em: `build/app/outputs/flutter-apk/app-release.apk`.
+   O APK gerado ficará guardado em `app/build/outputs/apk/debug/app-debug.apk`.
