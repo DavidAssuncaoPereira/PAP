@@ -6,6 +6,39 @@ import re
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from plyer import notification
+import tkinter as tk
+
+class Tooltip:
+    """
+    Classe para criar uma Tooltip moderna numa aplicação customtkinter (baseada em Tkinter).
+    Quando o rato passa por cima de um widget, uma pequena janela com texto explicativo é mostrada.
+    """
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip_window = None
+        self.widget.bind("<Enter>", self.show_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
+
+    def show_tooltip(self, event=None):
+        x = self.widget.winfo_rootx() + 25
+        y = self.widget.winfo_rooty() + 25
+
+        self.tooltip_window = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{x}+{y}")
+
+        # Estilo moderno para a tooltip
+        label = tk.Label(tw, text=self.text, justify='left',
+                         background="#2b2b2b", foreground="#ffffff",
+                         relief='solid', borderwidth=1,
+                         font=("Arial", 10, "normal"), padx=8, pady=4)
+        label.pack(ipadx=1)
+
+    def hide_tooltip(self, event=None):
+        if self.tooltip_window:
+            self.tooltip_window.destroy()
+        self.tooltip_window = None
 
 # ESP32 configuration
 ESP32_IP = "192.168.4.1"
@@ -29,29 +62,48 @@ class PlantMonitorApp(ctk.CTk):
         self.show_login()
 
     def show_login(self):
-        self.login_frame = ctk.CTkFrame(self)
+        # Card moderno com padding e cantos arredondados
+        self.login_frame = ctk.CTkFrame(self, corner_radius=15, fg_color=("gray85", "gray20"))
         self.login_frame.place(relx=0.5, rely=0.5, anchor="center")
 
-        self.login_title = ctk.CTkLabel(self.login_frame, text="Login", font=ctk.CTkFont(size=24, weight="bold"))
-        self.login_title.pack(pady=(20, 10))
+        # Título
+        self.login_title = ctk.CTkLabel(self.login_frame, text="Monitor de Plantas", font=ctk.CTkFont(size=24, weight="bold"))
+        self.login_title.pack(pady=(30, 10), padx=40)
 
-        self.password_entry = ctk.CTkEntry(self.login_frame, placeholder_text="Senha", show="*")
-        self.password_entry.pack(pady=10, padx=20)
+        # Subtítulo explicativo
+        self.login_subtitle = ctk.CTkLabel(self.login_frame, text="Por favor, introduza a sua senha.", font=ctk.CTkFont(size=12), text_color="gray")
+        self.login_subtitle.pack(pady=(0, 20), padx=40)
+
+        # Entrada de senha
+        self.password_entry = ctk.CTkEntry(self.login_frame, placeholder_text="Senha", show="*", width=200, height=35)
+        self.password_entry.pack(pady=10, padx=40)
         self.password_entry.bind("<Return>", lambda e: self.check_login())
 
-        self.login_button = ctk.CTkButton(self.login_frame, text="Entrar", command=self.check_login)
-        self.login_button.pack(pady=(10, 20), padx=20)
+        # Botão de Login (estilo premium)
+        self.login_button = ctk.CTkButton(
+            self.login_frame,
+            text="Entrar",
+            command=self.check_login,
+            width=200, height=35,
+            corner_radius=8,
+            fg_color="#1f6aa5",
+            hover_color="#144870"
+        )
+        self.login_button.pack(pady=(10, 10), padx=40)
 
-        self.login_error_label = ctk.CTkLabel(self.login_frame, text="", text_color="red")
-        self.login_error_label.pack()
+        self.login_error_label = ctk.CTkLabel(self.login_frame, text="", text_color="red", font=ctk.CTkFont(size=12))
+        self.login_error_label.pack(pady=(0, 20))
 
     def check_login(self):
         password = self.password_entry.get()
         if password == "admin":  # Default password
+            self.login_error_label.configure(text="")
+            # Limpar UI de login
             self.login_frame.destroy()
             self.build_main_ui()
         else:
-            self.login_error_label.configure(text="Senha incorreta!")
+            self.login_error_label.configure(text="Senha incorreta! Tente novamente.")
+            # Efeito visual de tremor (pequena UX melhoria) poderia ser feito aqui, mas fiquemos simples por agora.
 
     def build_main_ui(self):
         # Tabs layout
@@ -84,28 +136,45 @@ class PlantMonitorApp(ctk.CTk):
         self.title_label = ctk.CTkLabel(self.left_frame, text="Estação de Monitorização", font=ctk.CTkFont(size=20, weight="bold"))
         self.title_label.pack(pady=(0, 20))
 
-        self.temp_frame = ctk.CTkFrame(self.left_frame)
-        self.temp_frame.pack(pady=10, fill="x")
-        self.temp_label = ctk.CTkLabel(self.temp_frame, text="Temperatura: -- °C", font=ctk.CTkFont(size=16))
-        self.temp_label.pack(pady=10)
+        # Sensor Cards (Modern design)
+        card_fg_color = ("gray85", "gray25")
 
-        self.light_frame = ctk.CTkFrame(self.left_frame)
-        self.light_frame.pack(pady=10, fill="x")
-        self.light_label = ctk.CTkLabel(self.light_frame, text="Luminosidade: -- lx", font=ctk.CTkFont(size=16))
-        self.light_label.pack(pady=10)
+        self.temp_frame = ctk.CTkFrame(self.left_frame, corner_radius=10, fg_color=card_fg_color)
+        self.temp_frame.pack(pady=10, fill="x", ipadx=10, ipady=5)
+        self.temp_label = ctk.CTkLabel(self.temp_frame, text="Temperatura\n-- °C", font=ctk.CTkFont(size=16, weight="bold"))
+        self.temp_label.pack(pady=10, padx=20)
 
-        self.hum_frame = ctk.CTkFrame(self.left_frame)
-        self.hum_frame.pack(pady=10, fill="x")
-        self.hum_label = ctk.CTkLabel(self.hum_frame, text="Humidade Solo: -- %", font=ctk.CTkFont(size=16))
-        self.hum_label.pack(pady=10)
+        self.light_frame = ctk.CTkFrame(self.left_frame, corner_radius=10, fg_color=card_fg_color)
+        self.light_frame.pack(pady=10, fill="x", ipadx=10, ipady=5)
+        self.light_label = ctk.CTkLabel(self.light_frame, text="Luminosidade\n-- lx", font=ctk.CTkFont(size=16, weight="bold"))
+        self.light_label.pack(pady=10, padx=20)
 
-        self.status_label = ctk.CTkLabel(self.left_frame, text="A aguardar dados...", text_color="gray", font=ctk.CTkFont(size=12))
-        self.status_label.pack(side="bottom", pady=10)
+        self.hum_frame = ctk.CTkFrame(self.left_frame, corner_radius=10, fg_color=card_fg_color)
+        self.hum_frame.pack(pady=10, fill="x", ipadx=10, ipady=5)
+        self.hum_label = ctk.CTkLabel(self.hum_frame, text="Humidade Solo\n-- %", font=ctk.CTkFont(size=16, weight="bold"))
+        self.hum_label.pack(pady=10, padx=20)
+
+        # Status and Loading Indicator
+        self.status_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
+        self.status_frame.pack(side="bottom", pady=10, fill="x")
+
+        self.status_label = ctk.CTkLabel(self.status_frame, text="A aguardar dados...", text_color="gray", font=ctk.CTkFont(size=12))
+        self.status_label.pack()
+
+        self.progress_bar = ctk.CTkProgressBar(self.status_frame, width=150, mode="indeterminate")
+        self.progress_bar.pack(pady=5)
+        self.progress_bar.start()
 
         # UI Elements - Right (Graph)
-        self.fig = Figure(figsize=(5, 4), dpi=100)
+        # Configurar estilo moderno para o Matplotlib
+        self.fig = Figure(figsize=(5, 4), dpi=100, facecolor="#2b2b2b")
         self.ax = self.fig.add_subplot(111)
-        self.ax.set_title("Histórico")
+        self.ax.set_facecolor("#2b2b2b")
+        self.ax.tick_params(colors="white")
+        for spine in self.ax.spines.values():
+            spine.set_edgecolor('gray')
+
+        self.ax.set_title("Histórico de Monitorização", color="white", pad=15)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.right_frame)
         self.canvas.get_tk_widget().pack(fill="both", expand=True)
 
@@ -124,11 +193,17 @@ class PlantMonitorApp(ctk.CTk):
         self.limits_frame = ctk.CTkFrame(self.tab_settings, fg_color="transparent")
         self.limits_frame.pack(pady=20)
 
-        ctk.CTkLabel(self.limits_frame, text="Temperatura Máxima (°C):").grid(row=0, column=0, padx=10, pady=10)
+        lbl_max_temp = ctk.CTkLabel(self.limits_frame, text="Temperatura Máxima (°C):")
+        lbl_max_temp.grid(row=0, column=0, padx=10, pady=10)
+        Tooltip(lbl_max_temp, "Acima deste valor receberá uma notificação de perigo.")
+
         self.max_temp_entry = ctk.CTkEntry(self.limits_frame, textvariable=self.max_temp_var, width=60)
         self.max_temp_entry.grid(row=0, column=1, padx=10, pady=10)
 
-        ctk.CTkLabel(self.limits_frame, text="Humidade Mínima (%):").grid(row=1, column=0, padx=10, pady=10)
+        lbl_min_hum = ctk.CTkLabel(self.limits_frame, text="Humidade Mínima (%):")
+        lbl_min_hum.grid(row=1, column=0, padx=10, pady=10)
+        Tooltip(lbl_min_hum, "Abaixo deste valor será alertado para regar a planta.")
+
         self.min_hum_entry = ctk.CTkEntry(self.limits_frame, textvariable=self.min_hum_var, width=60)
         self.min_hum_entry.grid(row=1, column=1, padx=10, pady=10)
 
@@ -188,14 +263,20 @@ class PlantMonitorApp(ctk.CTk):
         if "error" in data:
             # Em caso de erro e se a UI do Dashboard ainda não foi criada, ignoramos
             if hasattr(self, 'status_label'):
-                self.status_label.configure(text=data["error"], text_color="red")
+                self.status_label.configure(text=f"Erro: {data['error'][:30]}...", text_color="red")
+                if hasattr(self, 'progress_bar') and self.progress_bar.winfo_ismapped():
+                    self.progress_bar.stop()
+                    self.progress_bar.pack_forget()
         elif "live" in data:
             live = data["live"]
             if hasattr(self, 'temp_label'):
-                self.temp_label.configure(text=f"Temperatura: {live['temp']} °C")
-                self.light_label.configure(text=f"Luminosidade: {live['light']} lx")
-                self.hum_label.configure(text=f"Humidade Solo: {live['hum']} %")
+                self.temp_label.configure(text=f"Temperatura\n{live['temp']} °C")
+                self.light_label.configure(text=f"Luminosidade\n{live['light']} lx")
+                self.hum_label.configure(text=f"Humidade Solo\n{live['hum']} %")
                 self.status_label.configure(text=f"Status: {live['status']}", text_color="green")
+                if hasattr(self, 'progress_bar') and self.progress_bar.winfo_ismapped():
+                    self.progress_bar.stop()
+                    self.progress_bar.pack_forget()
 
             self.check_alarms(live)
 
@@ -206,10 +287,17 @@ class PlantMonitorApp(ctk.CTk):
 
             if hasattr(self, 'ax'):
                 self.ax.clear()
-                self.ax.set_title("Histórico")
-                self.ax.plot(temps, label="Temp (°C)", color="red")
-                self.ax.plot(hums, label="Humidade (%)", color="blue")
-                self.ax.legend()
+                self.ax.set_title("Histórico de Monitorização", color="white", pad=15)
+                # Estilo das linhas mais apelativo e grelha para facilitar leitura
+                self.ax.plot(temps, label="Temp (°C)", color="#ff5555", linewidth=2, marker='o', markersize=4)
+                self.ax.plot(hums, label="Humidade (%)", color="#55aaff", linewidth=2, marker='o', markersize=4)
+                self.ax.grid(True, linestyle='--', alpha=0.5, color='gray')
+
+                # Configurar leganda com fundo escuro e texto branco para não chocar com o dark theme
+                legend = self.ax.legend(facecolor="#2b2b2b", edgecolor="gray")
+                for text in legend.get_texts():
+                    text.set_color("white")
+
                 self.canvas.draw()
 
     def check_alarms(self, live_data):
