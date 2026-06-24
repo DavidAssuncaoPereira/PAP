@@ -48,15 +48,31 @@ int humidadeRaw = 0;
 int humidadePercent = 0;
 
 // =====================================================
-// PAGINAÇÃO
+// HISTÓRICO
+// =====================================================
+struct HistoryRecord {
+  float temp;
+  float lux;
+  int hum;
+};
+
+const int MAX_HISTORY = 24;
+HistoryRecord historico[MAX_HISTORY];
+int historicoCount = 0;
+int historicoIndex = 0;
+
+// =====================================================
+// PAGINAÇÃO E TEMPOS
 // =====================================================
 int paginaAtual = 0;
 
 unsigned long ultimoTempoLeitura = 0;
 unsigned long ultimoTempoPagina = 0;
+unsigned long ultimoTempoHistorico = 0;
 
 const unsigned long INTERVALO_LEITURA = 2000;
 const unsigned long INTERVALO_PAGINA = 5000;
+const unsigned long INTERVALO_HISTORICO = 3600000; // 60 minutos
 
 // =====================================================
 // GRAU
@@ -73,6 +89,42 @@ byte simboloGrau[8] = {
 };
 
 // =====================================================
+// HISTÓRICO LÓGICA
+// =====================================================
+void gravarHistorico() {
+  historico[historicoIndex].temp = temperaturaC;
+  historico[historicoIndex].lux = luminosidadeLux;
+  historico[historicoIndex].hum = humidadePercent;
+
+  historicoIndex = (historicoIndex + 1) % MAX_HISTORY;
+  if (historicoCount < MAX_HISTORY) {
+    historicoCount++;
+  }
+}
+
+void enviarHistoricoJSON() {
+  String json = "[";
+  int startIdx = 0;
+  if (historicoCount == MAX_HISTORY) {
+    startIdx = historicoIndex;
+  }
+
+  for (int i = 0; i < historicoCount; i++) {
+    int idx = (startIdx + i) % MAX_HISTORY;
+    json += "{";
+    json += "\"temp\":" + String(historico[idx].temp, 1) + ",";
+    json += "\"lux\":" + String(historico[idx].lux, 1) + ",";
+    json += "\"hum\":" + String(historico[idx].hum);
+    json += "}";
+    if (i < historicoCount - 1) {
+      json += ",";
+    }
+  }
+  json += "]";
+  server.send(200, "application/json", json);
+}
+
+// =====================================================
 // PÁGINA WEB
 // =====================================================
 void enviarPaginaWeb() {
@@ -80,13 +132,44 @@ void enviarPaginaWeb() {
   html += "<head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>";
   html += "<title>Monitor de Plantas</title>";
   html += "<style>body { font-family: Arial, sans-serif; text-align: center; background-color: #f0f8ff; padding: 20px; }";
-  html += "h1 { color: #2e8b57; } .dado { font-size: 24px; margin: 10px; padding: 10px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }</style>";
-  html += "<meta http-equiv='refresh' content='5'>"; // Atualiza a página a cada 5 segundos
+  html += "h1 { color: #2e8b57; } .dado { font-size: 24px; margin: 10px; padding: 10px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }";
+  html += "canvas { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 20px; max-width: 100%; }</style>";
+  html += "<meta http-equiv='refresh' content='10'>"; // Atualiza a página a cada 10 segundos
   html += "</head><body>";
   html += "<h1>Estação de Monitorização</h1>";
   html += "<div class='dado'>️ Temperatura: <strong>" + String(temperaturaC, 1) + " °C</strong></div>";
   html += "<div class='dado'>☀️ Luminosidade: <strong>" + String(luminosidadeLux, 1) + " lx</strong></div>";
   html += "<div class='dado'>💧 Humidade: <strong>" + String(humidadePercent) + " %</strong></div>";
+
+  html += "<canvas id='chart' width='400' height='200'></canvas>";
+  html += "<script>";
+  html += "fetch('/history').then(r=>r.json()).then(data=>{";
+  html += "if(data.length===0) return;";
+  html += "const ctx = document.getElementById('chart').getContext('2d');";
+  html += "const w = 400; const h = 200;";
+  html += "const maxTemp = Math.max(...data.map(d=>d.temp), 40);";
+  html += "const maxHum = 100;";
+  html += "ctx.clearRect(0,0,w,h);";
+  html += "ctx.lineWidth=2;";
+  html += "const stepX = w / Math.max(data.length - 1, 1);";
+
+  html += "ctx.beginPath(); ctx.strokeStyle='red';";
+  html += "data.forEach((d,i)=>{";
+  html += "const x = i * stepX;";
+  html += "const y = h - (d.temp / maxTemp * h);";
+  html += "if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);";
+  html += "}); ctx.stroke();";
+
+  html += "ctx.beginPath(); ctx.strokeStyle='blue';";
+  html += "data.forEach((d,i)=>{";
+  html += "const x = i * stepX;";
+  html += "const y = h - (d.hum / maxHum * h);";
+  html += "if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);";
+  html += "}); ctx.stroke();";
+
+  html += "});";
+  html += "</script>";
+
   html += "</body></html>";
 
   server.send(200, "text/html", html);
@@ -144,6 +227,7 @@ void setup() {
 
   // Configurar rotas do Servidor Web
   server.on("/", enviarPaginaWeb);
+  server.on("/history", enviarHistoricoJSON);
   server.begin();
   Serial.println("Servidor HTTP iniciado.");
 
@@ -152,6 +236,9 @@ void setup() {
   lcd.clear();
 
   lerSensores();
+  gravarHistorico(); // Grava primeiro registo
+  ultimoTempoHistorico = millis();
+
   mostrarPagina();
 }
 
@@ -173,6 +260,12 @@ void loop() {
     mostrarPagina();
 
     mostrarSerial();
+  }
+
+  // Atualizar histórico
+  if (agora - ultimoTempoHistorico >= INTERVALO_HISTORICO) {
+    ultimoTempoHistorico = agora;
+    gravarHistorico();
   }
 
   // Trocar página

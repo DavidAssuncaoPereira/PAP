@@ -13,11 +13,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import java.util.regex.Pattern
 import java.util.concurrent.TimeUnit
 
@@ -42,6 +47,8 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+data class HistoryRecord(val temp: Float, val hum: Float)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen() {
@@ -49,6 +56,7 @@ fun DashboardScreen() {
     var luminosidade by remember { mutableStateOf("--") }
     var humidade by remember { mutableStateOf("--") }
     var status by remember { mutableStateOf("A aguardar dados...") }
+    var history by remember { mutableStateOf<List<HistoryRecord>>(emptyList()) }
 
     val client = remember {
         OkHttpClient.Builder()
@@ -93,6 +101,29 @@ fun DashboardScreen() {
                             }
                         }
                     }
+
+                    // Fetch history
+                    val histRequest = Request.Builder()
+                        .url("http://192.168.4.1/history")
+                        .build()
+
+                    client.newCall(histRequest).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val jsonString = response.body?.string() ?: "[]"
+                            val jsonArray = JSONArray(jsonString)
+                            val newHistory = mutableListOf<HistoryRecord>()
+                            for (i in 0 until jsonArray.length()) {
+                                val obj = jsonArray.getJSONObject(i)
+                                newHistory.add(HistoryRecord(
+                                    temp = obj.getDouble("temp").toFloat(),
+                                    hum = obj.getDouble("hum").toFloat()
+                                ))
+                            }
+                            withContext(Dispatchers.Main) {
+                                history = newHistory
+                            }
+                        }
+                    }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         status = "Erro de ligação (O ESP32 está ligado?)."
@@ -126,12 +157,72 @@ fun DashboardScreen() {
             DataCard(title = "Humidade do Solo", value = "$humidade %", iconColor = Color.Blue)
 
             Spacer(modifier = Modifier.height(40.dp))
+
+            if (history.isNotEmpty()) {
+                Text(text = "Histórico", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Gray)
+                Spacer(modifier = Modifier.height(10.dp))
+                HistoryChart(history)
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+
             Text(
                 text = status,
                 color = if (status == "Conectado") Color(0xFF4CAF50) else Color.Red,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
             )
+        }
+    }
+}
+
+@Composable
+fun HistoryChart(history: List<HistoryRecord>) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(15.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Box(modifier = Modifier.padding(16.dp)) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val width = size.width
+                val height = size.height
+                val stepX = width / Math.max(history.size - 1, 1).toFloat()
+
+                val maxTemp = Math.max(history.maxOf { it.temp }, 40f)
+                val maxHum = 100f
+
+                val tempPath = Path()
+                val humPath = Path()
+
+                history.forEachIndexed { i, record ->
+                    val x = i * stepX
+                    val tempY = height - (record.temp / maxTemp * height)
+                    val humY = height - (record.hum / maxHum * height)
+
+                    if (i == 0) {
+                        tempPath.moveTo(x, tempY)
+                        humPath.moveTo(x, humY)
+                    } else {
+                        tempPath.lineTo(x, tempY)
+                        humPath.lineTo(x, humY)
+                    }
+                }
+
+                drawPath(
+                    path = tempPath,
+                    color = Color.Red,
+                    style = Stroke(width = 4f)
+                )
+
+                drawPath(
+                    path = humPath,
+                    color = Color.Blue,
+                    style = Stroke(width = 4f)
+                )
+            }
         }
     }
 }
