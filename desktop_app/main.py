@@ -52,6 +52,18 @@ class PlantMonitorApp(ctk.CTk):
         self.geometry("800x450")
         self.resizable(False, False)
 
+        try:
+            from PIL import Image, ImageTk
+            import os
+            # Configurar o ícone da janela
+            icon_path = os.path.join(os.path.dirname(__file__), "assets", "app_icon.png")
+            if os.path.exists(icon_path):
+                img = Image.open(icon_path)
+                photo = ImageTk.PhotoImage(img)
+                self.wm_iconphoto(True, photo)
+        except Exception as e:
+            print(f"Aviso: Não foi possível carregar o ícone: {e}")
+
         # Configure theme
         ctk.set_appearance_mode("System")
         ctk.set_default_color_theme("green")
