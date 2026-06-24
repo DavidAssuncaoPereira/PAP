@@ -17,6 +17,19 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -27,8 +40,27 @@ import java.util.regex.Pattern
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        // Permission result handled
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        createNotificationChannel()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
         setContent {
             MaterialTheme(
                 colorScheme = lightColorScheme(
@@ -40,9 +72,174 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    DashboardScreen()
+                    var isLoggedIn by remember { mutableStateOf(false) }
+
+                    if (isLoggedIn) {
+                        MainScreen()
+                    } else {
+                        LoginScreen(onLoginSuccess = { isLoggedIn = true })
+                    }
                 }
             }
+        }
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "Alertas de Plantas"
+            val descriptionText = "Notificações quando os limites da planta são excedidos"
+            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val channel = NotificationChannel("PLANT_ALERTS", name, importance).apply {
+                description = descriptionText
+            }
+            val notificationManager: NotificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+}
+
+@Composable
+fun MainScreen() {
+    var selectedTab by remember { mutableStateOf(0) }
+
+    // Configurações guardadas em estado
+    var notificationsEnabled by remember { mutableStateOf(true) }
+    var maxTempThreshold by remember { mutableStateOf("30.0") }
+    var minHumThreshold by remember { mutableStateOf("30.0") }
+
+    Scaffold(
+        bottomBar = {
+            NavigationBar(containerColor = Color.White) {
+                NavigationBarItem(
+                    icon = { Text("📊") },
+                    label = { Text("Dashboard") },
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 }
+                )
+                NavigationBarItem(
+                    icon = { Text("⚙️") },
+                    label = { Text("Configurações") },
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 }
+                )
+            }
+        }
+    ) { paddingValues ->
+        Box(modifier = Modifier.padding(paddingValues)) {
+            if (selectedTab == 0) {
+                DashboardScreen(
+                    notificationsEnabled = notificationsEnabled,
+                    maxTempThreshold = maxTempThreshold.toFloatOrNull() ?: 30f,
+                    minHumThreshold = minHumThreshold.toFloatOrNull() ?: 30f
+                )
+            } else {
+                SettingsScreen(
+                    notificationsEnabled = notificationsEnabled,
+                    onNotificationsChange = { notificationsEnabled = it },
+                    maxTempThreshold = maxTempThreshold,
+                    onMaxTempChange = { maxTempThreshold = it },
+                    minHumThreshold = minHumThreshold,
+                    onMinHumChange = { minHumThreshold = it }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsScreen(
+    notificationsEnabled: Boolean,
+    onNotificationsChange: (Boolean) -> Unit,
+    maxTempThreshold: String,
+    onMaxTempChange: (String) -> Unit,
+    minHumThreshold: String,
+    onMinHumChange: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Configurações", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+        Spacer(modifier = Modifier.height(30.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Ativar Notificações", fontSize = 18.sp)
+            Switch(
+                checked = notificationsEnabled,
+                onCheckedChange = onNotificationsChange,
+                colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF4CAF50))
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        OutlinedTextField(
+            value = maxTempThreshold,
+            onValueChange = onMaxTempChange,
+            label = { Text("Temperatura Máxima (°C)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        OutlinedTextField(
+            value = minHumThreshold,
+            onValueChange = onMinHumChange,
+            label = { Text("Humidade Mínima (%)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LoginScreen(onLoginSuccess: () -> Unit) {
+    var password by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Login", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+        Spacer(modifier = Modifier.height(30.dp))
+
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Senha") },
+            visualTransformation = PasswordVisualTransformation(),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (errorMessage.isNotEmpty()) {
+            Text(errorMessage, color = Color.Red, fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        Button(
+            onClick = {
+                if (password == "admin") {
+                    onLoginSuccess()
+                } else {
+                    errorMessage = "Senha incorreta!"
+                }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+        ) {
+            Text("Entrar")
         }
     }
 }
@@ -51,18 +248,47 @@ data class HistoryRecord(val temp: Float, val hum: Float)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen() {
+fun DashboardScreen(
+    notificationsEnabled: Boolean = false,
+    maxTempThreshold: Float = 30f,
+    minHumThreshold: Float = 30f
+) {
     var temperatura by remember { mutableStateOf("--") }
     var luminosidade by remember { mutableStateOf("--") }
     var humidade by remember { mutableStateOf("--") }
     var status by remember { mutableStateOf("A aguardar dados...") }
     var history by remember { mutableStateOf<List<HistoryRecord>>(emptyList()) }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val currentNotificationsEnabled by rememberUpdatedState(notificationsEnabled)
+    val currentMaxTempThreshold by rememberUpdatedState(maxTempThreshold)
+    val currentMinHumThreshold by rememberUpdatedState(minHumThreshold)
+
     val client = remember {
         OkHttpClient.Builder()
             .connectTimeout(3, TimeUnit.SECONDS)
             .readTimeout(3, TimeUnit.SECONDS)
             .build()
+    }
+
+    // Estado para cooldown de notificações
+    var lastTempNotifTime by remember { mutableStateOf(0L) }
+    var lastHumNotifTime by remember { mutableStateOf(0L) }
+    val cooldownMs = 300000L // 5 minutos em ms
+
+    fun sendNotification(id: Int, title: String, message: String) {
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            val builder = NotificationCompat.Builder(context, "PLANT_ALERTS")
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setContentTitle(title)
+                .setContentText(message)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+
+            with(NotificationManagerCompat.from(context)) {
+                notify(id, builder.build())
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -96,6 +322,31 @@ fun DashboardScreen() {
                                 luminosidade = lightMatcher.group(1) ?: "--"
                                 humidade = humMatcher.group(1) ?: "--"
                                 status = "Conectado"
+
+                                if (currentNotificationsEnabled) {
+                                    val tempVal = temperatura.toFloatOrNull() ?: 0f
+                                    val humVal = humidade.toFloatOrNull() ?: 0f
+                                    val now = System.currentTimeMillis()
+
+                                    if (tempVal > currentMaxTempThreshold) {
+                                        if (now - lastTempNotifTime > cooldownMs) {
+                                            sendNotification(1, "Alerta de Temperatura", "Temperatura atual: $tempVal °C (Máx: $currentMaxTempThreshold °C)")
+                                            lastTempNotifTime = now
+                                        }
+                                    } else {
+                                        lastTempNotifTime = 0L
+                                    }
+
+                                    if (humVal < currentMinHumThreshold) {
+                                        if (now - lastHumNotifTime > cooldownMs) {
+                                            sendNotification(2, "Alerta de Humidade", "Humidade atual: $humVal % (Mín: $currentMinHumThreshold %)")
+                                            lastHumNotifTime = now
+                                        }
+                                    } else {
+                                        lastHumNotifTime = 0L
+                                    }
+                                }
+
                             } else {
                                 status = "Não foi possível extrair dados do HTML."
                             }
