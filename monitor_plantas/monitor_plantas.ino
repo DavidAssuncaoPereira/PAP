@@ -131,17 +131,23 @@ void enviarPaginaWeb() {
   String html = "<!DOCTYPE html><html>";
   html += "<head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>";
   html += "<title>Monitor de Plantas</title>";
-  html += "<style>body { font-family: Arial, sans-serif; text-align: center; background-color: #f0f8ff; padding: 20px; }";
-  html += "h1 { color: #2e8b57; } .dado { font-size: 24px; margin: 10px; padding: 10px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }";
-  html += "canvas { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 20px; max-width: 100%; }</style>";
+  html += "<style>body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align: center; background-color: #2b2b2b; padding: 20px; color: #f0f0f0; }";
+  html += "h1 { color: #4CAF50; font-weight: 600; margin-bottom: 30px; }";
+  html += ".container { display: flex; flex-direction: column; align-items: center; gap: 15px; max-width: 600px; margin: 0 auto; }";
+  html += ".dado { font-size: 20px; width: 100%; box-sizing: border-box; padding: 20px; background: #3c3f41; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: transform 0.2s ease, box-shadow 0.2s ease; border-left: 5px solid #4CAF50; }";
+  html += ".dado:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.3); }";
+  html += ".dado strong { color: #ffffff; font-size: 26px; display: block; margin-top: 5px; }";
+  html += "canvas { background: #3c3f41; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); margin-top: 30px; max-width: 100%; }</style>";
   html += "<meta http-equiv='refresh' content='10'>"; // Atualiza a página a cada 10 segundos
   html += "</head><body>";
   html += "<h1>Estação de Monitorização</h1>";
-  html += "<div class='dado'>️ Temperatura: <strong>" + String(temperaturaC, 1) + " °C</strong></div>";
-  html += "<div class='dado'>☀️ Luminosidade: <strong>" + String(luminosidadeLux, 1) + " lx</strong></div>";
-  html += "<div class='dado'>💧 Humidade: <strong>" + String(humidadePercent) + " %</strong></div>";
+  html += "<div class='container'>";
+  html += "<div class='dado' style='border-left-color: #ff5555;'>Temperatura <strong>" + String(temperaturaC, 1) + " °C</strong></div>";
+  html += "<div class='dado' style='border-left-color: #f39c12;'>Luminosidade <strong>" + String(luminosidadeLux, 1) + " lx</strong></div>";
+  html += "<div class='dado' style='border-left-color: #55aaff;'>Humidade do Solo <strong>" + String(humidadePercent) + " %</strong></div>";
 
   html += "<canvas id='chart' width='400' height='200'></canvas>";
+  html += "</div>";
   html += "<script>";
   html += "fetch('/history').then(r=>r.json()).then(data=>{";
   html += "if(data.length===0) return;";
@@ -150,17 +156,21 @@ void enviarPaginaWeb() {
   html += "const maxTemp = Math.max(...data.map(d=>d.temp), 40);";
   html += "const maxHum = 100;";
   html += "ctx.clearRect(0,0,w,h);";
-  html += "ctx.lineWidth=2;";
+  html += "ctx.lineWidth=3;";
   html += "const stepX = w / Math.max(data.length - 1, 1);";
 
-  html += "ctx.beginPath(); ctx.strokeStyle='red';";
+  html += "ctx.strokeStyle='rgba(255, 255, 255, 0.1)'; ctx.beginPath();";
+  html += "for(let i=0; i<=h; i+=50) { ctx.moveTo(0, i); ctx.lineTo(w, i); }";
+  html += "ctx.stroke();";
+
+  html += "ctx.beginPath(); ctx.strokeStyle='#ff5555';";
   html += "data.forEach((d,i)=>{";
   html += "const x = i * stepX;";
   html += "const y = h - (d.temp / maxTemp * h);";
   html += "if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);";
   html += "}); ctx.stroke();";
 
-  html += "ctx.beginPath(); ctx.strokeStyle='blue';";
+  html += "ctx.beginPath(); ctx.strokeStyle='#55aaff';";
   html += "data.forEach((d,i)=>{";
   html += "const x = i * stepX;";
   html += "const y = h - (d.hum / maxHum * h);";

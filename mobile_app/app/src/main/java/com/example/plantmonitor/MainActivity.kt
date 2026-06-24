@@ -206,40 +206,78 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     var password by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf("") }
 
-    Column(
+    Box(
         modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        contentAlignment = Alignment.Center
     ) {
-        Text("Login", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
-        Spacer(modifier = Modifier.height(30.dp))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Senha") },
-            visualTransformation = PasswordVisualTransformation(),
-            singleLine = true
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        if (errorMessage.isNotEmpty()) {
-            Text(errorMessage, color = Color.Red, fontSize = 14.sp)
-            Spacer(modifier = Modifier.height(10.dp))
-        }
-
-        Button(
-            onClick = {
-                if (password == "admin") {
-                    onLoginSuccess()
-                } else {
-                    errorMessage = "Senha incorreta!"
-                }
-            },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+        Card(
+            modifier = Modifier
+                .padding(20.dp)
+                .fillMaxWidth(0.9f),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            Text("Entrar")
+            Column(
+                modifier = Modifier
+                    .padding(32.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "Monitor de Plantas",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF2E8B57)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Por favor, introduza a sua senha.",
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Senha") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (errorMessage.isNotEmpty()) {
+                    Text(errorMessage, color = Color.Red, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                } else {
+                    Spacer(modifier = Modifier.height(27.dp)) // Reserve space to avoid jumping
+                }
+
+                Button(
+                    onClick = {
+                        if (password == "admin") {
+                            onLoginSuccess()
+                        } else {
+                            errorMessage = "Senha incorreta!"
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                ) {
+                    Text("Entrar", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
@@ -416,6 +454,14 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
+            if (status == "A aguardar dados...") {
+                CircularProgressIndicator(
+                    color = Color(0xFF4CAF50),
+                    modifier = Modifier.size(30.dp)
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
             Text(
                 text = status,
                 color = if (status == "Conectado") Color(0xFF4CAF50) else Color.Red,
@@ -464,14 +510,14 @@ fun HistoryChart(history: List<HistoryRecord>) {
 
                 drawPath(
                     path = tempPath,
-                    color = Color.Red,
-                    style = Stroke(width = 4f)
+                    color = Color(0xFFFF5555),
+                    style = Stroke(width = 6f)
                 )
 
                 drawPath(
                     path = humPath,
-                    color = Color.Blue,
-                    style = Stroke(width = 4f)
+                    color = Color(0xFF55AAFF),
+                    style = Stroke(width = 6f)
                 )
             }
         }
@@ -482,21 +528,20 @@ fun HistoryChart(history: List<HistoryRecord>) {
 fun DataCard(title: String, value: String, iconColor: Color) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(15.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Row(
             modifier = Modifier
-                .padding(vertical = 20.dp, horizontal = 30.dp)
+                .padding(vertical = 24.dp, horizontal = 30.dp)
                 .fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
+            horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Simplified icon placeholder using a colored box or text
             Box(
                 modifier = Modifier
-                    .size(40.dp),
+                    .size(50.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -505,13 +550,13 @@ fun DataCard(title: String, value: String, iconColor: Color) {
                         "Luminosidade" -> "☀️"
                         else -> "💧"
                     },
-                    fontSize = 24.sp
+                    fontSize = 28.sp
                 )
             }
-            Spacer(modifier = Modifier.width(15.dp))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = title, fontSize = 16.sp, color = Color.Gray)
-                Text(text = value, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.width(20.dp))
+            Column(horizontalAlignment = Alignment.Start) {
+                Text(text = title, fontSize = 14.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
+                Text(text = value, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.DarkGray)
             }
         }
     }
