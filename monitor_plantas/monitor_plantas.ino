@@ -5,6 +5,8 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <BH1750.h>
+#include <EEPROM.h>
+
 
 // =====================================================
 // REDE WI-FI & SERVIDOR WEB
@@ -37,6 +39,13 @@ DallasTemperature sensorTemp(&oneWire);
 // BH1750
 // =====================================================
 BH1750 sensorLuz;
+
+
+// =====================================================
+// EEPROM
+// =====================================================
+#define EEPROM_SIZE 512
+#define EEPROM_MAGIC_NUMBER 0x1A2B3C4D
 
 // =====================================================
 // VARIÁVEIS
@@ -88,9 +97,40 @@ byte simboloGrau[8] = {
   B00000
 };
 
+
 // =====================================================
 // HISTÓRICO LÓGICA
 // =====================================================
+void lerHistoricoEEPROM() {
+  uint32_t magic;
+  EEPROM.get(0, magic);
+
+  if (magic == EEPROM_MAGIC_NUMBER) {
+    int addr = sizeof(magic);
+    EEPROM.get(addr, historicoCount);
+    addr += sizeof(historicoCount);
+    EEPROM.get(addr, historicoIndex);
+    addr += sizeof(historicoIndex);
+    EEPROM.get(addr, historico);
+    Serial.println("Historico carregado da EEPROM.");
+  } else {
+    Serial.println("EEPROM vazia ou invalida. Inicializando...");
+  }
+}
+
+void gravarHistoricoEEPROM() {
+  uint32_t magic = EEPROM_MAGIC_NUMBER;
+  int addr = 0;
+  EEPROM.put(addr, magic);
+  addr += sizeof(magic);
+  EEPROM.put(addr, historicoCount);
+  addr += sizeof(historicoCount);
+  EEPROM.put(addr, historicoIndex);
+  addr += sizeof(historicoIndex);
+  EEPROM.put(addr, historico);
+  EEPROM.commit();
+}
+
 void gravarHistorico() {
   historico[historicoIndex].temp = temperaturaC;
   historico[historicoIndex].lux = luminosidadeLux;
@@ -100,7 +140,10 @@ void gravarHistorico() {
   if (historicoCount < MAX_HISTORY) {
     historicoCount++;
   }
+
+  gravarHistoricoEEPROM();
 }
+
 
 void enviarHistoricoJSON() {
   String json = "[";
@@ -193,6 +236,11 @@ void setup() {
   Serial.begin(115200);
 
   Wire.begin(SDA_I2C, SCL_I2C);
+
+
+  // EEPROM
+  EEPROM.begin(EEPROM_SIZE);
+  lerHistoricoEEPROM();
 
   // LCD
   lcd.begin(20, 4);
