@@ -201,6 +201,7 @@ class PlantMonitorApp(ctk.CTk):
         self.max_temp_var = ctk.StringVar(value="30")
         self.min_hum_var = ctk.StringVar(value="30")
         self.limite_bomba_var = ctk.StringVar(value="30")
+        self.limite_bomba_temp_var = ctk.StringVar(value="30")
 
         self.settings_title = ctk.CTkLabel(self.tab_settings, text="Configurações de Notificação", font=ctk.CTkFont(size=18, weight="bold"))
         self.settings_title.pack(pady=20)
@@ -232,6 +233,13 @@ class PlantMonitorApp(ctk.CTk):
         self.limite_bomba_entry = ctk.CTkEntry(self.limits_frame, textvariable=self.limite_bomba_var, width=60)
         self.limite_bomba_entry.grid(row=2, column=1, padx=10, pady=10)
 
+        lbl_limite_bomba_temp = ctk.CTkLabel(self.limits_frame, text="Lim. Temp. Bomba (°C):")
+        lbl_limite_bomba_temp.grid(row=3, column=0, padx=10, pady=10)
+        Tooltip(lbl_limite_bomba_temp, "Acima deste valor a bomba será acionada automaticamente.")
+
+        self.limite_bomba_temp_entry = ctk.CTkEntry(self.limits_frame, textvariable=self.limite_bomba_temp_var, width=60)
+        self.limite_bomba_temp_entry.grid(row=3, column=1, padx=10, pady=10)
+
         self.save_button = ctk.CTkButton(self.tab_settings, text="Guardar Configurações", command=self.save_settings)
         self.save_button.pack(pady=20)
 
@@ -247,10 +255,14 @@ class PlantMonitorApp(ctk.CTk):
             if lim_bomba < 0 or lim_bomba > 100:
                 raise ValueError("Limite da bomba deve ser entre 0 e 100")
 
+            lim_bomba_temp = int(self.limite_bomba_temp_var.get())
+            if lim_bomba_temp < 0 or lim_bomba_temp > 100:
+                raise ValueError("Limite da bomba temp deve ser entre 0 e 100")
+
             import threading
             def update_bomba():
                 try:
-                    requests.get(f"{URL}config?limite={lim_bomba}", timeout=3)
+                    requests.get(f"{URL}config?limite={lim_bomba}&limite_temp={lim_bomba_temp}", timeout=3)
                 except Exception:
                     pass
             threading.Thread(target=update_bomba, daemon=True).start()
@@ -276,10 +288,12 @@ class PlantMonitorApp(ctk.CTk):
             hum_match = re.search(r"Humidade: <strong>([0-9.]+) %</strong>", html)
             bomba_estado_match = re.search(r"Bomba de Água <strong><span[^>]*>(.*?)</span>", html)
             bomba_lim_match = re.search(r"name='limite'.*?value='([0-9]+)'", html)
+            bomba_lim_temp_match = re.search(r"name='limite_temp'.*?value='([0-9]+)'", html)
 
             if temp_match and light_match and hum_match:
                 b_estado = bomba_estado_match.group(1) if bomba_estado_match else "--"
                 b_lim = bomba_lim_match.group(1) if bomba_lim_match else None
+                b_lim_temp = bomba_lim_temp_match.group(1) if bomba_lim_temp_match else None
 
                 result["live"] = {
                     "temp": temp_match.group(1),
@@ -287,6 +301,7 @@ class PlantMonitorApp(ctk.CTk):
                     "hum": hum_match.group(1),
                     "bomba_estado": b_estado,
                     "bomba_lim": b_lim,
+                    "bomba_lim_temp": b_lim_temp,
                     "status": "Conectado"
                 }
             else:
@@ -325,6 +340,10 @@ class PlantMonitorApp(ctk.CTk):
                     # Só atualizamos se a caixa de texto não tiver foco para não incomodar a edição do utilizador
                     if str(self.focus_get()) != str(self.limite_bomba_entry):
                         self.limite_bomba_var.set(live["bomba_lim"])
+
+                if live.get("bomba_lim_temp") is not None:
+                    if str(self.focus_get()) != str(self.limite_bomba_temp_entry):
+                        self.limite_bomba_temp_var.set(live["bomba_lim_temp"])
 
                 self.status_label.configure(text=f"Status: {live['status']}", text_color="green")
                 if hasattr(self, 'progress_bar') and self.progress_bar.winfo_ismapped():
