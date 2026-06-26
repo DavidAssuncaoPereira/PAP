@@ -20,6 +20,7 @@ WebServer server(80);
 // =====================================================
 #define PINO_TEMPERATURA 4
 #define PINO_HUMIDADE    34
+#define PINO_BOMBA       16
 
 #define SDA_I2C 21
 #define SCL_I2C 22
@@ -55,6 +56,9 @@ float luminosidadeLux = 0.0;
 
 int humidadeRaw = 0;
 int humidadePercent = 0;
+
+int limiteBombaHumidade = 30;
+bool estadoBomba = false;
 
 // =====================================================
 // HISTÓRICO
@@ -112,6 +116,14 @@ void lerHistoricoEEPROM() {
     EEPROM.get(addr, historicoIndex);
     addr += sizeof(historicoIndex);
     EEPROM.get(addr, historico);
+    addr += sizeof(historico);
+    EEPROM.get(addr, limiteBombaHumidade);
+
+    // Validar caso o valor na EEPROM seja inválido (ex: lixo após update firmware)
+    if (limiteBombaHumidade < 0 || limiteBombaHumidade > 100) {
+      limiteBombaHumidade = 30;
+    }
+
     Serial.println("Historico carregado da EEPROM.");
   } else {
     Serial.println("EEPROM vazia ou invalida. Inicializando...");
@@ -128,6 +140,8 @@ void gravarHistoricoEEPROM() {
   EEPROM.put(addr, historicoIndex);
   addr += sizeof(historicoIndex);
   EEPROM.put(addr, historico);
+  addr += sizeof(historico);
+  EEPROM.put(addr, limiteBombaHumidade);
   EEPROM.commit();
 }
 
@@ -187,7 +201,15 @@ void enviarPaginaWeb() {
   html += "<div class='container'>";
   html += "<div class='dado' style='border-left-color: #ff5555;'>Temperatura <strong>" + String(temperaturaC, 1) + " °C</strong></div>";
   html += "<div class='dado' style='border-left-color: #f39c12;'>Luminosidade <strong>" + String(luminosidadeLux, 1) + " lx</strong></div>";
-  html += "<div class='dado' style='border-left-color: #55aaff;'>Humidade do Solo <strong>" + String(humidadePercent) + " %</strong></div>";
+  html += "<div class='dado' style='border-left-color: #55aaff;'>Humidade: <strong>" + String(humidadePercent) + " %</strong></div>";
+
+  String estadoBombaStr = estadoBomba ? "<span style='color:#4CAF50;'>LIGADA</span>" : "<span style='color:#ff5555;'>DESLIGADA</span>";
+  html += "<div class='dado' style='border-left-color: #9b59b6;'>Bomba de Água <strong>" + estadoBombaStr + "</strong><br>";
+  html += "<form action='/config' method='GET' style='margin-top: 10px; font-size: 16px;'>";
+  html += "<label for='limite'>Ligar quando humidade &lt; </label>";
+  html += "<input type='number' id='limite' name='limite' min='0' max='100' value='" + String(limiteBombaHumidade) + "' style='width: 60px; padding: 5px; border-radius: 5px; border: 1px solid #ccc; background-color: #2b2b2b; color: white;'> % ";
+  html += "<input type='submit' value='Guardar' style='padding: 5px 10px; border-radius: 5px; border: none; background-color: #4CAF50; color: white; cursor: pointer;'>";
+  html += "</form></div>";
 
   html += "<canvas id='chart' width='400' height='200'></canvas>";
   html += "</div>";
@@ -228,6 +250,19 @@ void enviarPaginaWeb() {
   server.send(200, "text/html", html);
 }
 
+// -----------------------------------------------------
+void processarConfigBomba() {
+  if (server.hasArg("limite")) {
+    int novoLimite = server.arg("limite").toInt();
+    if (novoLimite >= 0 && novoLimite <= 100) {
+      limiteBombaHumidade = novoLimite;
+      gravarHistoricoEEPROM(); // Salvar o novo limite
+    }
+  }
+  server.sendHeader("Location", "/");
+  server.send(302, "text/plain", "Redirecionando...");
+}
+
 // =====================================================
 // SETUP
 // =====================================================
@@ -250,6 +285,10 @@ void setup() {
 
   // Temperatura
   sensorTemp.begin();
+
+  // Bomba
+  pinMode(PINO_BOMBA, OUTPUT);
+  digitalWrite(PINO_BOMBA, LOW);
 
   // BH1750
   bool luzOK =
@@ -286,6 +325,7 @@ void setup() {
   // Configurar rotas do Servidor Web
   server.on("/", enviarPaginaWeb);
   server.on("/history", enviarHistoricoJSON);
+  server.on("/config", processarConfigBomba);
   server.begin();
   Serial.println("Servidor HTTP iniciado.");
 
@@ -351,6 +391,7 @@ void lerSensores() {
   lerTemperatura();
   lerLuminosidade();
   lerHumidade();
+  atualizarBomba();
 }
 
 // -----------------------------------------------------
@@ -391,6 +432,17 @@ void lerHumidade() {
 
   if (humidadePercent > 100)
     humidadePercent = 100;
+}
+
+// -----------------------------------------------------
+void atualizarBomba() {
+  if (humidadePercent < limiteBombaHumidade) {
+    digitalWrite(PINO_BOMBA, HIGH);
+    estadoBomba = true;
+  } else {
+    digitalWrite(PINO_BOMBA, LOW);
+    estadoBomba = false;
+  }
 }
 
 // =====================================================
@@ -478,7 +530,10 @@ void mostrarHumidadeLCD() {
   lcd.print("%");
 
   lcd.setCursor(0, 3);
-  lcd.print(classificarHumidade());
+  lcd.print("Bomba:");
+  lcd.print(estadoBomba ? "ON " : "OFF");
+  lcd.print(" Lim:");
+  lcd.print(limiteBombaHumidade);
 }
 
 // -----------------------------------------------------
