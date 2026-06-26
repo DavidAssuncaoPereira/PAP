@@ -109,6 +109,7 @@ fun MainScreen() {
     var maxTempThreshold by remember { mutableStateOf("30.0") }
     var minHumThreshold by remember { mutableStateOf("30.0") }
     var limiteBombaThreshold by remember { mutableStateOf("30") }
+    var limiteBombaTempThreshold by remember { mutableStateOf("30") }
 
     Scaffold(
         bottomBar = {
@@ -144,7 +145,9 @@ fun MainScreen() {
                     minHumThreshold = minHumThreshold,
                     onMinHumChange = { minHumThreshold = it },
                     limiteBombaThreshold = limiteBombaThreshold,
-                    onLimiteBombaChange = { limiteBombaThreshold = it }
+                    onLimiteBombaChange = { limiteBombaThreshold = it },
+                    limiteBombaTempThreshold = limiteBombaTempThreshold,
+                    onLimiteBombaTempChange = { limiteBombaTempThreshold = it }
                 )
             }
         }
@@ -160,7 +163,9 @@ fun SettingsScreen(
     minHumThreshold: String,
     onMinHumChange: (String) -> Unit,
     limiteBombaThreshold: String,
-    onLimiteBombaChange: (String) -> Unit
+    onLimiteBombaChange: (String) -> Unit,
+    limiteBombaTempThreshold: String,
+    onLimiteBombaTempChange: (String) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     Column(
@@ -215,6 +220,16 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        Spacer(modifier = Modifier.height(20.dp))
+
+        OutlinedTextField(
+            value = limiteBombaTempThreshold,
+            onValueChange = onLimiteBombaTempChange,
+            label = { Text("Limite Temp. Bomba (°C)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+
         Spacer(modifier = Modifier.height(10.dp))
 
         Button(
@@ -223,7 +238,7 @@ fun SettingsScreen(
                     try {
                         val client = OkHttpClient()
                         val request = Request.Builder()
-                            .url("http://192.168.4.1/config?limite=$limiteBombaThreshold")
+                            .url("http://192.168.4.1/config?limite=$limiteBombaThreshold&limite_temp=$limiteBombaTempThreshold")
                             .build()
                         client.newCall(request).execute().use { response ->
                             // Ignore response
@@ -393,6 +408,7 @@ fun DashboardScreen(
                         val humMatcher = Pattern.compile("Humidade: <strong>([0-9.]+) %</strong>").matcher(html)
                         val bombaStateMatcher = Pattern.compile("Bomba de Água <strong><span[^>]*>(.*?)</span>").matcher(html)
                         val bombaLimMatcher = Pattern.compile("name='limite'.*?value='([0-9]+)'").matcher(html)
+                        val bombaLimTempMatcher = Pattern.compile("name='limite_temp'.*?value='([0-9]+)'").matcher(html)
 
                         val hasTemp = tempMatcher.find()
                         val hasLight = lightMatcher.find()
@@ -412,6 +428,12 @@ fun DashboardScreen(
                                      // (Este binding pode sobrepor se o user estiver a digitar exatamente quando recarrega - edgecase menor que 5s)
                                      // Mas como a diretiva sugere live-sync... a não ser que possamos partilhar estado de foco.
                                      // Omitido para não reescrever o campo limitBombaThreshold se estragar UX
+                                }
+                            }
+                            if (bombaLimTempMatcher.find()) {
+                                val limitTempStr = bombaLimTempMatcher.group(1)
+                                if (limitTempStr != null) {
+                                     // Omitido pelo mesmo motivo que limitBombaThreshold
                                 }
                             }
 
