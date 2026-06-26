@@ -5,6 +5,8 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <BH1750.h>
+#include <EEPROM.h>
+
 
 // =====================================================
 // REDE WI-FI & SERVIDOR WEB
@@ -37,6 +39,13 @@ DallasTemperature sensorTemp(&oneWire);
 // BH1750
 // =====================================================
 BH1750 sensorLuz;
+
+
+// =====================================================
+// EEPROM
+// =====================================================
+#define EEPROM_SIZE 512
+#define EEPROM_MAGIC_NUMBER 0x1A2B3C4D
 
 // =====================================================
 // VARIÁVEIS
@@ -88,9 +97,40 @@ byte simboloGrau[8] = {
   B00000
 };
 
+
 // =====================================================
 // HISTÓRICO LÓGICA
 // =====================================================
+void lerHistoricoEEPROM() {
+  uint32_t magic;
+  EEPROM.get(0, magic);
+
+  if (magic == EEPROM_MAGIC_NUMBER) {
+    int addr = sizeof(magic);
+    EEPROM.get(addr, historicoCount);
+    addr += sizeof(historicoCount);
+    EEPROM.get(addr, historicoIndex);
+    addr += sizeof(historicoIndex);
+    EEPROM.get(addr, historico);
+    Serial.println("Historico carregado da EEPROM.");
+  } else {
+    Serial.println("EEPROM vazia ou invalida. Inicializando...");
+  }
+}
+
+void gravarHistoricoEEPROM() {
+  uint32_t magic = EEPROM_MAGIC_NUMBER;
+  int addr = 0;
+  EEPROM.put(addr, magic);
+  addr += sizeof(magic);
+  EEPROM.put(addr, historicoCount);
+  addr += sizeof(historicoCount);
+  EEPROM.put(addr, historicoIndex);
+  addr += sizeof(historicoIndex);
+  EEPROM.put(addr, historico);
+  EEPROM.commit();
+}
+
 void gravarHistorico() {
   historico[historicoIndex].temp = temperaturaC;
   historico[historicoIndex].lux = luminosidadeLux;
@@ -100,7 +140,10 @@ void gravarHistorico() {
   if (historicoCount < MAX_HISTORY) {
     historicoCount++;
   }
+
+  gravarHistoricoEEPROM();
 }
+
 
 void enviarHistoricoJSON() {
   String json = "[";
@@ -129,7 +172,7 @@ void enviarHistoricoJSON() {
 // =====================================================
 void enviarPaginaWeb() {
   String html = "<!DOCTYPE html><html>";
-  html += "<head><link rel='icon' type='image/png' href='data:image/png;base64,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'><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>";
+  html += "<head><link rel='icon' type='image/png' href='data:image/png;base64,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'>";
   html += "<title>Monitor de Plantas</title>";
   html += "<style>body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align: center; background-color: #2b2b2b; padding: 20px; color: #f0f0f0; }";
   html += "h1 { color: #4CAF50; font-weight: 600; margin-bottom: 30px; }";
@@ -193,6 +236,11 @@ void setup() {
   Serial.begin(115200);
 
   Wire.begin(SDA_I2C, SCL_I2C);
+
+
+  // EEPROM
+  EEPROM.begin(EEPROM_SIZE);
+  lerHistoricoEEPROM();
 
   // LCD
   lcd.begin(20, 4);
