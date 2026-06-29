@@ -257,7 +257,7 @@ void enviarPaginaWeb() {
 
   html += "</body></html>";
 
-  server.send(200, "text/html", html);
+  server.send(200, "text/html; charset=utf-8", html);
 }
 
 // -----------------------------------------------------
