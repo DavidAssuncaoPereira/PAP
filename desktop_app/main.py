@@ -407,12 +407,14 @@ class PlantMonitorApp(ctk.CTk):
 
             if alarm_messages:
                 # Disparar notificação (plyer pode bloquear, então corremos numa thread separada se necessário, mas costuma ser rápido no SO)
-                notification.notify(
-                    title="Alerta Monitor de Plantas",
-                    message="\n".join(alarm_messages),
-                    app_name="Monitor de Plantas",
-                    timeout=5
-                )
+                def send_notif():
+                    notification.notify(
+                        title="Alerta Monitor de Plantas",
+                        message="\n".join(alarm_messages),
+                        app_name="Monitor de Plantas",
+                        timeout=5
+                    )
+                threading.Thread(target=send_notif, daemon=True).start()
 
         except ValueError:
             pass # Ignorar se as conversões falharem (ex: valores inválidos nos settings)

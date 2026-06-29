@@ -103,13 +103,15 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
     var selectedTab by remember { mutableStateOf(0) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("PlantMonitorPrefs", Context.MODE_PRIVATE) }
 
     // Configurações guardadas em estado
-    var notificationsEnabled by remember { mutableStateOf(true) }
-    var maxTempThreshold by remember { mutableStateOf("30.0") }
-    var minHumThreshold by remember { mutableStateOf("30.0") }
-    var limiteBombaThreshold by remember { mutableStateOf("30") }
-    var limiteBombaTempThreshold by remember { mutableStateOf("30") }
+    var notificationsEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("notificationsEnabled", true)) }
+    var maxTempThreshold by remember { mutableStateOf(sharedPrefs.getString("maxTempThreshold", "30.0") ?: "30.0") }
+    var minHumThreshold by remember { mutableStateOf(sharedPrefs.getString("minHumThreshold", "30.0") ?: "30.0") }
+    var limiteBombaThreshold by remember { mutableStateOf(sharedPrefs.getString("limiteBombaThreshold", "30") ?: "30") }
+    var limiteBombaTempThreshold by remember { mutableStateOf(sharedPrefs.getString("limiteBombaTempThreshold", "30") ?: "30") }
 
     Scaffold(
         bottomBar = {
@@ -139,15 +141,30 @@ fun MainScreen() {
             } else {
                 SettingsScreen(
                     notificationsEnabled = notificationsEnabled,
-                    onNotificationsChange = { notificationsEnabled = it },
+                    onNotificationsChange = {
+                        notificationsEnabled = it
+                        sharedPrefs.edit().putBoolean("notificationsEnabled", it).apply()
+                    },
                     maxTempThreshold = maxTempThreshold,
-                    onMaxTempChange = { maxTempThreshold = it },
+                    onMaxTempChange = {
+                        maxTempThreshold = it
+                        sharedPrefs.edit().putString("maxTempThreshold", it).apply()
+                    },
                     minHumThreshold = minHumThreshold,
-                    onMinHumChange = { minHumThreshold = it },
+                    onMinHumChange = {
+                        minHumThreshold = it
+                        sharedPrefs.edit().putString("minHumThreshold", it).apply()
+                    },
                     limiteBombaThreshold = limiteBombaThreshold,
-                    onLimiteBombaChange = { limiteBombaThreshold = it },
+                    onLimiteBombaChange = {
+                        limiteBombaThreshold = it
+                        sharedPrefs.edit().putString("limiteBombaThreshold", it).apply()
+                    },
                     limiteBombaTempThreshold = limiteBombaTempThreshold,
-                    onLimiteBombaTempChange = { limiteBombaTempThreshold = it }
+                    onLimiteBombaTempChange = {
+                        limiteBombaTempThreshold = it
+                        sharedPrefs.edit().putString("limiteBombaTempThreshold", it).apply()
+                    }
                 )
             }
         }
@@ -236,7 +253,10 @@ fun SettingsScreen(
             onClick = {
                 coroutineScope.launch(Dispatchers.IO) {
                     try {
-                        val client = OkHttpClient()
+                        val client = OkHttpClient.Builder()
+                            .connectTimeout(3, TimeUnit.SECONDS)
+                            .readTimeout(3, TimeUnit.SECONDS)
+                            .build()
                         val request = Request.Builder()
                             .url("http://192.168.4.1/config?limite=$limiteBombaThreshold&limite_temp=$limiteBombaTempThreshold")
                             .build()
