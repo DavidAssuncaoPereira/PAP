@@ -286,7 +286,7 @@ class PlantMonitorApp(ctk.CTk):
             temp_match = re.search(r"Temperatura: <strong>([-0-9.]+) °C</strong>", html)
             light_match = re.search(r"Luminosidade: <strong>([0-9.]+) lx</strong>", html)
             hum_match = re.search(r"Humidade: <strong>([0-9.]+) %</strong>", html)
-            bomba_estado_match = re.search(r"Bomba de Água <strong><span[^>]*>(.*?)</span>", html)
+            bomba_estado_match = re.search(r"Bomba de Água <strong><span[^>]*>([A-Z]+)", html)
             bomba_lim_match = re.search(r"name='limite'.*?value='([0-9]+)'", html)
             bomba_lim_temp_match = re.search(r"name='limite_temp'.*?value='([0-9]+)'", html)
 

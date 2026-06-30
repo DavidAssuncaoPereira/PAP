@@ -426,7 +426,7 @@ fun DashboardScreen(
                         val tempMatcher = Pattern.compile("Temperatura: <strong>([-0-9.]+) °C</strong>").matcher(html)
                         val lightMatcher = Pattern.compile("Luminosidade: <strong>([0-9.]+) lx</strong>").matcher(html)
                         val humMatcher = Pattern.compile("Humidade: <strong>([0-9.]+) %</strong>").matcher(html)
-                        val bombaStateMatcher = Pattern.compile("Bomba de Água <strong><span[^>]*>(.*?)</span>").matcher(html)
+                        val bombaStateMatcher = Pattern.compile("Bomba de Água <strong><span[^>]*>([A-Z]+)").matcher(html)
                         val bombaLimMatcher = Pattern.compile("name='limite'.*?value='([0-9]+)'").matcher(html)
                         val bombaLimTempMatcher = Pattern.compile("name='limite_temp'.*?value='([0-9]+)'").matcher(html)
 
