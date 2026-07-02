@@ -60,6 +60,8 @@ int humidadePercent = 0;
 int limiteBombaHumidade = 30;
 int limiteBombaTemperatura = 30;
 bool estadoBomba = false;
+bool bombaOverride = false;
+bool estadoBombaManual = false;
 
 // =====================================================
 // HISTÓRICO
@@ -213,13 +215,11 @@ void enviarPaginaWeb() {
 
   String estadoBombaStr = estadoBomba ? "<span style='color:#4CAF50;'>LIGADA <span style='display:inline-block;width:12px;height:12px;border-radius:50%;background-color:#4CAF50;box-shadow:0 0 8px #4CAF50;'></span></span>" : "<span style='color:#ff5555;'>DESLIGADA <span style='display:inline-block;width:12px;height:12px;border-radius:50%;background-color:#555;'></span></span>";
   html += "<div class='dado' style='border-left-color: #9b59b6;'>Bomba de Água <strong>" + estadoBombaStr + "</strong><br>";
-  html += "<form action='/config' method='GET' style='margin-top: 10px; font-size: 16px; display: flex; flex-direction: column; align-items: center; gap: 10px;'>";
-  html += "<div><label for='limite'>Ligar quando humidade &lt; </label>";
-  html += "<input type='number' id='limite' name='limite' min='0' max='100' value='" + String(limiteBombaHumidade) + "' style='width: 60px; padding: 5px; border-radius: 5px; border: 1px solid #ccc; background-color: #2b2b2b; color: white;'> % </div>";
-  html += "<div><label for='limite_temp'>Ou ligar quando temp &gt; </label>";
-  html += "<input type='number' id='limite_temp' name='limite_temp' min='0' max='100' value='" + String(limiteBombaTemperatura) + "' style='width: 60px; padding: 5px; border-radius: 5px; border: 1px solid #ccc; background-color: #2b2b2b; color: white;'> °C </div>";
-  html += "<input type='submit' value='Guardar' style='padding: 5px 10px; border-radius: 5px; border: none; background-color: #4CAF50; color: white; cursor: pointer;'>";
-  html += "</form></div>";
+  html += "<div style='margin-top: 10px; font-size: 16px; display: flex; justify-content: center; gap: 10px;'>";
+  html += "<button onclick=\"window.location.href='/toggle_bomba?modo=ligar'\" style='padding: 10px 20px; border-radius: 5px; border: none; background-color: #4CAF50; color: white; cursor: pointer;'>Ligar</button>";
+  html += "<button onclick=\"window.location.href='/toggle_bomba?modo=desligar'\" style='padding: 10px 20px; border-radius: 5px; border: none; background-color: #ff5555; color: white; cursor: pointer;'>Desligar</button>";
+  html += "<button onclick=\"window.location.href='/toggle_bomba?modo=auto'\" style='padding: 10px 20px; border-radius: 5px; border: none; background-color: #55aaff; color: white; cursor: pointer;'>Auto</button>";
+  html += "</div></div>";
 
   html += "<canvas id='chart' width='400' height='200'></canvas>";
   html += "</div>";
@@ -261,24 +261,19 @@ void enviarPaginaWeb() {
 }
 
 // -----------------------------------------------------
-void processarConfigBomba() {
-  bool updated = false;
-  if (server.hasArg("limite")) {
-    int novoLimite = server.arg("limite").toInt();
-    if (novoLimite >= 0 && novoLimite <= 100) {
-      limiteBombaHumidade = novoLimite;
-      updated = true;
+void processarToggleBomba() {
+  if (server.hasArg("modo")) {
+    String modo = server.arg("modo");
+    if (modo == "ligar") {
+      bombaOverride = true;
+      estadoBombaManual = true;
+    } else if (modo == "desligar") {
+      bombaOverride = true;
+      estadoBombaManual = false;
+    } else if (modo == "auto") {
+      bombaOverride = false;
     }
-  }
-  if (server.hasArg("limite_temp")) {
-    int novoLimiteTemp = server.arg("limite_temp").toInt();
-    if (novoLimiteTemp >= 0 && novoLimiteTemp <= 100) {
-      limiteBombaTemperatura = novoLimiteTemp;
-      updated = true;
-    }
-  }
-  if (updated) {
-    gravarHistoricoEEPROM(); // Salvar os novos limites
+    atualizarBomba();
   }
   server.sendHeader("Location", "/");
   server.send(302, "text/plain", "Redirecionando...");
@@ -346,7 +341,7 @@ void setup() {
   // Configurar rotas do Servidor Web
   server.on("/", enviarPaginaWeb);
   server.on("/history", enviarHistoricoJSON);
-  server.on("/config", processarConfigBomba);
+  server.on("/toggle_bomba", processarToggleBomba);
   server.begin();
   Serial.println("Servidor HTTP iniciado.");
 
@@ -457,12 +452,17 @@ void lerHumidade() {
 
 // -----------------------------------------------------
 void atualizarBomba() {
-  if (humidadePercent < limiteBombaHumidade || temperaturaC > limiteBombaTemperatura) {
-    digitalWrite(PINO_BOMBA, HIGH);
-    estadoBomba = true;
+  if (bombaOverride) {
+    digitalWrite(PINO_BOMBA, estadoBombaManual ? HIGH : LOW);
+    estadoBomba = estadoBombaManual;
   } else {
-    digitalWrite(PINO_BOMBA, LOW);
-    estadoBomba = false;
+    if (humidadePercent < limiteBombaHumidade || temperaturaC > limiteBombaTemperatura) {
+      digitalWrite(PINO_BOMBA, HIGH);
+      estadoBomba = true;
+    } else {
+      digitalWrite(PINO_BOMBA, LOW);
+      estadoBomba = false;
+    }
   }
 }
 
