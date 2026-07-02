@@ -124,9 +124,11 @@ class PlantMonitorApp(ctk.CTk):
 
         self.tab_dashboard = self.tabview.add("Dashboard")
         self.tab_settings = self.tabview.add("Configurações")
+        self.tab_charts = self.tabview.add("Gráficos")
 
         self.build_dashboard_tab()
         self.build_settings_tab()
+        self.build_charts_tab()
 
         # Last notification timestamps to prevent spam
         self.last_temp_notif_time = 0
@@ -139,12 +141,9 @@ class PlantMonitorApp(ctk.CTk):
     def build_dashboard_tab(self):
         # Dashboard Split
         self.left_frame = ctk.CTkFrame(self.tab_dashboard, fg_color="transparent")
-        self.left_frame.pack(side="left", fill="y", padx=10, pady=10)
+        self.left_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        self.right_frame = ctk.CTkFrame(self.tab_dashboard, fg_color="transparent")
-        self.right_frame.pack(side="right", fill="both", expand=True, padx=10, pady=10)
-
-        # UI Elements - Left
+        # UI Elements
         self.title_label = ctk.CTkLabel(self.left_frame, text="Estação de Monitorização", font=ctk.CTkFont(size=20, weight="bold"))
         self.title_label.pack(pady=(0, 20))
 
@@ -166,10 +165,18 @@ class PlantMonitorApp(ctk.CTk):
         self.hum_label = ctk.CTkLabel(self.hum_frame, text="Humidade Solo\n-- %", font=ctk.CTkFont(size=16, weight="bold"))
         self.hum_label.pack(pady=10, padx=20)
 
-        self.bomba_frame = ctk.CTkFrame(self.left_frame, corner_radius=10, fg_color=card_fg_color)
-        self.bomba_frame.pack(pady=10, fill="x", ipadx=10, ipady=5)
-        self.bomba_label = ctk.CTkLabel(self.bomba_frame, text="Bomba de Água\n--", font=ctk.CTkFont(size=16, weight="bold"))
-        self.bomba_label.pack(pady=10, padx=20)
+        # Bomba Control Frame
+        self.bomba_ctrl_frame = ctk.CTkFrame(self.left_frame, corner_radius=10, fg_color=card_fg_color)
+        self.bomba_ctrl_frame.pack(pady=10, fill="x", ipadx=10, ipady=5)
+        self.bomba_label = ctk.CTkLabel(self.bomba_ctrl_frame, text="Bomba de Água\n--", font=ctk.CTkFont(size=16, weight="bold"))
+        self.bomba_label.pack(pady=(10, 5), padx=20)
+
+        self.bomba_buttons_frame = ctk.CTkFrame(self.bomba_ctrl_frame, fg_color="transparent")
+        self.bomba_buttons_frame.pack(pady=(0, 10))
+
+        ctk.CTkButton(self.bomba_buttons_frame, text="Ligar", width=60, fg_color="#4CAF50", hover_color="#45a049", command=lambda: self.toggle_bomba("ligar")).pack(side="left", padx=5)
+        ctk.CTkButton(self.bomba_buttons_frame, text="Desligar", width=60, fg_color="#ff5555", hover_color="#e04e4e", command=lambda: self.toggle_bomba("desligar")).pack(side="left", padx=5)
+        ctk.CTkButton(self.bomba_buttons_frame, text="Auto", width=60, fg_color="#55aaff", hover_color="#4c99e6", command=lambda: self.toggle_bomba("auto")).pack(side="left", padx=5)
 
         # Status and Loading Indicator
         self.status_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
@@ -182,8 +189,8 @@ class PlantMonitorApp(ctk.CTk):
         self.progress_bar.pack(pady=5)
         self.progress_bar.start()
 
-        # UI Elements - Right (Graph)
-        # Configurar estilo moderno para o Matplotlib
+    def build_charts_tab(self):
+        # Configurar estilo moderno para o Matplotlib na aba de gráficos
         self.fig = Figure(figsize=(5, 4), dpi=100, facecolor="#2b2b2b")
         self.ax = self.fig.add_subplot(111)
         self.ax.set_facecolor("#2b2b2b")
@@ -192,16 +199,14 @@ class PlantMonitorApp(ctk.CTk):
             spine.set_edgecolor('gray')
 
         self.ax.set_title("Histórico de Monitorização", color="white", pad=15)
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self.right_frame)
-        self.canvas.get_tk_widget().pack(fill="both", expand=True)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.tab_charts)
+        self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
 
     def build_settings_tab(self):
         # Settings Variables
         self.notifications_enabled = ctk.BooleanVar(value=True)
         self.max_temp_var = ctk.StringVar(value="30")
         self.min_hum_var = ctk.StringVar(value="30")
-        self.limite_bomba_var = ctk.StringVar(value="30")
-        self.limite_bomba_temp_var = ctk.StringVar(value="30")
 
         self.settings_title = ctk.CTkLabel(self.tab_settings, text="Configurações de Notificação", font=ctk.CTkFont(size=18, weight="bold"))
         self.settings_title.pack(pady=20)
@@ -226,46 +231,25 @@ class PlantMonitorApp(ctk.CTk):
         self.min_hum_entry = ctk.CTkEntry(self.limits_frame, textvariable=self.min_hum_var, width=60)
         self.min_hum_entry.grid(row=1, column=1, padx=10, pady=10)
 
-        lbl_limite_bomba = ctk.CTkLabel(self.limits_frame, text="Limite Bomba (%):")
-        lbl_limite_bomba.grid(row=2, column=0, padx=10, pady=10)
-        Tooltip(lbl_limite_bomba, "Abaixo deste valor a bomba será acionada automaticamente.")
-
-        self.limite_bomba_entry = ctk.CTkEntry(self.limits_frame, textvariable=self.limite_bomba_var, width=60)
-        self.limite_bomba_entry.grid(row=2, column=1, padx=10, pady=10)
-
-        lbl_limite_bomba_temp = ctk.CTkLabel(self.limits_frame, text="Lim. Temp. Bomba (°C):")
-        lbl_limite_bomba_temp.grid(row=3, column=0, padx=10, pady=10)
-        Tooltip(lbl_limite_bomba_temp, "Acima deste valor a bomba será acionada automaticamente.")
-
-        self.limite_bomba_temp_entry = ctk.CTkEntry(self.limits_frame, textvariable=self.limite_bomba_temp_var, width=60)
-        self.limite_bomba_temp_entry.grid(row=3, column=1, padx=10, pady=10)
-
         self.save_button = ctk.CTkButton(self.tab_settings, text="Guardar Configurações", command=self.save_settings)
         self.save_button.pack(pady=20)
 
         self.save_label = ctk.CTkLabel(self.tab_settings, text="", text_color="green")
         self.save_label.pack()
 
+    def toggle_bomba(self, modo):
+        import threading
+        def send_request():
+            try:
+                requests.get(f"{URL}toggle_bomba?modo={modo}", timeout=3)
+            except Exception:
+                pass
+        threading.Thread(target=send_request, daemon=True).start()
+
     def save_settings(self):
         try:
             float(self.max_temp_var.get())
             float(self.min_hum_var.get())
-
-            lim_bomba = int(self.limite_bomba_var.get())
-            if lim_bomba < 0 or lim_bomba > 100:
-                raise ValueError("Limite da bomba deve ser entre 0 e 100")
-
-            lim_bomba_temp = int(self.limite_bomba_temp_var.get())
-            if lim_bomba_temp < 0 or lim_bomba_temp > 100:
-                raise ValueError("Limite da bomba temp deve ser entre 0 e 100")
-
-            import threading
-            def update_bomba():
-                try:
-                    requests.get(f"{URL}config?limite={lim_bomba}&limite_temp={lim_bomba_temp}", timeout=3)
-                except Exception:
-                    pass
-            threading.Thread(target=update_bomba, daemon=True).start()
 
             self.save_label.configure(text="Configurações guardadas com sucesso!", text_color="green")
         except ValueError as e:
@@ -287,21 +271,15 @@ class PlantMonitorApp(ctk.CTk):
             light_match = re.search(r"Luminosidade: <strong>([0-9.]+) lx</strong>", html)
             hum_match = re.search(r"Humidade: <strong>([0-9.]+) %</strong>", html)
             bomba_estado_match = re.search(r"Bomba de Água <strong><span[^>]*>([A-Z]+)", html)
-            bomba_lim_match = re.search(r"name='limite'.*?value='([0-9]+)'", html)
-            bomba_lim_temp_match = re.search(r"name='limite_temp'.*?value='([0-9]+)'", html)
 
             if temp_match and light_match and hum_match:
                 b_estado = bomba_estado_match.group(1) if bomba_estado_match else "--"
-                b_lim = bomba_lim_match.group(1) if bomba_lim_match else None
-                b_lim_temp = bomba_lim_temp_match.group(1) if bomba_lim_temp_match else None
 
                 result["live"] = {
                     "temp": temp_match.group(1),
                     "light": light_match.group(1),
                     "hum": hum_match.group(1),
                     "bomba_estado": b_estado,
-                    "bomba_lim": b_lim,
-                    "bomba_lim_temp": b_lim_temp,
                     "status": "Conectado"
                 }
             else:
@@ -335,15 +313,6 @@ class PlantMonitorApp(ctk.CTk):
                 self.hum_label.configure(text=f"Humidade Solo\n{live['hum']} %")
                 if hasattr(self, 'bomba_label'):
                     self.bomba_label.configure(text=f"Bomba de Água\n{live.get('bomba_estado', '--')}")
-
-                if live.get("bomba_lim") is not None:
-                    # Só atualizamos se a caixa de texto não tiver foco para não incomodar a edição do utilizador
-                    if str(self.focus_get()) != str(self.limite_bomba_entry):
-                        self.limite_bomba_var.set(live["bomba_lim"])
-
-                if live.get("bomba_lim_temp") is not None:
-                    if str(self.focus_get()) != str(self.limite_bomba_temp_entry):
-                        self.limite_bomba_temp_var.set(live["bomba_lim_temp"])
 
                 self.status_label.configure(text=f"Status: {live['status']}", text_color="green")
                 if hasattr(self, 'progress_bar') and self.progress_bar.winfo_ismapped():

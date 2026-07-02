@@ -315,6 +315,7 @@ fun DashboardScreen(
     var temperatura by remember { mutableStateOf("--") }
     var luminosidade by remember { mutableStateOf("--") }
     var humidade by remember { mutableStateOf("--") }
+    var estadoBomba by remember { mutableStateOf("--") }
     var status by remember { mutableStateOf("A aguardar dados...") }
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -369,12 +370,17 @@ fun DashboardScreen(
                         val tempMatcher = Pattern.compile("Temperatura: <strong>([-0-9.]+) °C</strong>").matcher(html)
                         val lightMatcher = Pattern.compile("Luminosidade: <strong>([0-9.]+) lx</strong>").matcher(html)
                         val humMatcher = Pattern.compile("Humidade: <strong>([0-9.]+) %</strong>").matcher(html)
+                        val bombaStateMatcher = Pattern.compile("Bomba de Água <strong><span[^>]*>([A-Z]+)").matcher(html)
 
                         val hasTemp = tempMatcher.find()
                         val hasLight = lightMatcher.find()
                         val hasHum = humMatcher.find()
 
                         withContext(Dispatchers.Main) {
+                            if (bombaStateMatcher.find()) {
+                                estadoBomba = bombaStateMatcher.group(1) ?: "--"
+                            }
+
                             if (hasTemp && hasLight && hasHum) {
                                 temperatura = tempMatcher.group(1) ?: "--"
                                 luminosidade = lightMatcher.group(1) ?: "--"
@@ -441,6 +447,38 @@ fun DashboardScreen(
             DataCard(title = "Luminosidade", value = "$luminosidade lx", iconColor = Color(0xFFFFA500))
             Spacer(modifier = Modifier.height(20.dp))
             DataCard(title = "Humidade do Solo", value = "$humidade %", iconColor = Color.Blue)
+            Spacer(modifier = Modifier.height(20.dp))
+            DataCard(title = "Bomba de Água", value = estadoBomba, iconColor = Color(0xFF9B59B6))
+
+            Spacer(modifier = Modifier.height(20.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                val coroutineScope = rememberCoroutineScope()
+                fun setBombaState(modo: String) {
+                    coroutineScope.launch(Dispatchers.IO) {
+                        try {
+                            val request = Request.Builder()
+                                .url("http://192.168.4.1/toggle_bomba?modo=$modo")
+                                .build()
+                            client.newCall(request).execute().use { }
+                        } catch (e: Exception) { }
+                    }
+                }
+                Button(
+                    onClick = { setBombaState("ligar") },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                ) { Text("Ligar") }
+                Button(
+                    onClick = { setBombaState("desligar") },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFff5555))
+                ) { Text("Desligar") }
+                Button(
+                    onClick = { setBombaState("auto") },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF55aaff))
+                ) { Text("Auto") }
+            }
 
             Spacer(modifier = Modifier.height(40.dp))
 
