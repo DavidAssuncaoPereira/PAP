@@ -110,8 +110,6 @@ fun MainScreen() {
     var notificationsEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("notificationsEnabled", true)) }
     var maxTempThreshold by remember { mutableStateOf(sharedPrefs.getString("maxTempThreshold", "30.0") ?: "30.0") }
     var minHumThreshold by remember { mutableStateOf(sharedPrefs.getString("minHumThreshold", "30.0") ?: "30.0") }
-    var limiteBombaThreshold by remember { mutableStateOf(sharedPrefs.getString("limiteBombaThreshold", "30") ?: "30") }
-    var limiteBombaTempThreshold by remember { mutableStateOf(sharedPrefs.getString("limiteBombaTempThreshold", "30") ?: "30") }
 
     Scaffold(
         bottomBar = {
@@ -128,6 +126,12 @@ fun MainScreen() {
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 }
                 )
+                NavigationBarItem(
+                    icon = { Text("📈") },
+                    label = { Text("Gráficos") },
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 }
+                )
             }
         }
     ) { paddingValues ->
@@ -138,7 +142,7 @@ fun MainScreen() {
                     maxTempThreshold = maxTempThreshold.toFloatOrNull() ?: 30f,
                     minHumThreshold = minHumThreshold.toFloatOrNull() ?: 30f
                 )
-            } else {
+            } else if (selectedTab == 1) {
                 SettingsScreen(
                     notificationsEnabled = notificationsEnabled,
                     onNotificationsChange = {
@@ -154,18 +158,10 @@ fun MainScreen() {
                     onMinHumChange = {
                         minHumThreshold = it
                         sharedPrefs.edit().putString("minHumThreshold", it).apply()
-                    },
-                    limiteBombaThreshold = limiteBombaThreshold,
-                    onLimiteBombaChange = {
-                        limiteBombaThreshold = it
-                        sharedPrefs.edit().putString("limiteBombaThreshold", it).apply()
-                    },
-                    limiteBombaTempThreshold = limiteBombaTempThreshold,
-                    onLimiteBombaTempChange = {
-                        limiteBombaTempThreshold = it
-                        sharedPrefs.edit().putString("limiteBombaTempThreshold", it).apply()
                     }
                 )
+            } else if (selectedTab == 2) {
+                ChartsScreen()
             }
         }
     }
@@ -178,11 +174,7 @@ fun SettingsScreen(
     maxTempThreshold: String,
     onMaxTempChange: (String) -> Unit,
     minHumThreshold: String,
-    onMinHumChange: (String) -> Unit,
-    limiteBombaThreshold: String,
-    onLimiteBombaChange: (String) -> Unit,
-    limiteBombaTempThreshold: String,
-    onLimiteBombaTempChange: (String) -> Unit
+    onMinHumChange: (String) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     Column(
@@ -226,53 +218,6 @@ fun SettingsScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth()
         )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        OutlinedTextField(
-            value = limiteBombaThreshold,
-            onValueChange = onLimiteBombaChange,
-            label = { Text("Limite da Bomba (%)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        OutlinedTextField(
-            value = limiteBombaTempThreshold,
-            onValueChange = onLimiteBombaTempChange,
-            label = { Text("Limite Temp. Bomba (°C)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Button(
-            onClick = {
-                coroutineScope.launch(Dispatchers.IO) {
-                    try {
-                        val client = OkHttpClient.Builder()
-                            .connectTimeout(3, TimeUnit.SECONDS)
-                            .readTimeout(3, TimeUnit.SECONDS)
-                            .build()
-                        val request = Request.Builder()
-                            .url("http://192.168.4.1/config?limite=$limiteBombaThreshold&limite_temp=$limiteBombaTempThreshold")
-                            .build()
-                        client.newCall(request).execute().use { response ->
-                            // Ignore response
-                        }
-                    } catch (e: Exception) {
-                        // Ignore error
-                    }
-                }
-            },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Guardar Bomba", color = Color.White)
-        }
     }
 }
 
@@ -370,9 +315,7 @@ fun DashboardScreen(
     var temperatura by remember { mutableStateOf("--") }
     var luminosidade by remember { mutableStateOf("--") }
     var humidade by remember { mutableStateOf("--") }
-    var estadoBomba by remember { mutableStateOf("--") }
     var status by remember { mutableStateOf("A aguardar dados...") }
-    var history by remember { mutableStateOf<List<HistoryRecord>>(emptyList()) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -426,37 +369,12 @@ fun DashboardScreen(
                         val tempMatcher = Pattern.compile("Temperatura: <strong>([-0-9.]+) °C</strong>").matcher(html)
                         val lightMatcher = Pattern.compile("Luminosidade: <strong>([0-9.]+) lx</strong>").matcher(html)
                         val humMatcher = Pattern.compile("Humidade: <strong>([0-9.]+) %</strong>").matcher(html)
-                        val bombaStateMatcher = Pattern.compile("Bomba de Água <strong><span[^>]*>([A-Z]+)").matcher(html)
-                        val bombaLimMatcher = Pattern.compile("name='limite'.*?value='([0-9]+)'").matcher(html)
-                        val bombaLimTempMatcher = Pattern.compile("name='limite_temp'.*?value='([0-9]+)'").matcher(html)
 
                         val hasTemp = tempMatcher.find()
                         val hasLight = lightMatcher.find()
                         val hasHum = humMatcher.find()
 
                         withContext(Dispatchers.Main) {
-                            if (bombaStateMatcher.find()) {
-                                estadoBomba = bombaStateMatcher.group(1) ?: "--"
-                            }
-
-                            // Só atualiza se houver um valor numérico extraído com sucesso do HTML para garantir que app e web page estão synced
-                            if (bombaLimMatcher.find()) {
-                                // Idealmente só devia atualizar se o campo não estiver focado, mas como não temos isso exposto de forma fácil
-                                // no textfield base do compose para este scope, mantemos sincronia simples via fetch periódico.
-                                val limitStr = bombaLimMatcher.group(1)
-                                if (limitStr != null) {
-                                     // (Este binding pode sobrepor se o user estiver a digitar exatamente quando recarrega - edgecase menor que 5s)
-                                     // Mas como a diretiva sugere live-sync... a não ser que possamos partilhar estado de foco.
-                                     // Omitido para não reescrever o campo limitBombaThreshold se estragar UX
-                                }
-                            }
-                            if (bombaLimTempMatcher.find()) {
-                                val limitTempStr = bombaLimTempMatcher.group(1)
-                                if (limitTempStr != null) {
-                                     // Omitido pelo mesmo motivo que limitBombaThreshold
-                                }
-                            }
-
                             if (hasTemp && hasLight && hasHum) {
                                 temperatura = tempMatcher.group(1) ?: "--"
                                 luminosidade = lightMatcher.group(1) ?: "--"
@@ -492,29 +410,6 @@ fun DashboardScreen(
                             }
                         }
                     }
-
-                    // Fetch history
-                    val histRequest = Request.Builder()
-                        .url("http://192.168.4.1/history")
-                        .build()
-
-                    client.newCall(histRequest).execute().use { response ->
-                        if (response.isSuccessful) {
-                            val jsonString = response.body?.string() ?: "[]"
-                            val jsonArray = JSONArray(jsonString)
-                            val newHistory = mutableListOf<HistoryRecord>()
-                            for (i in 0 until jsonArray.length()) {
-                                val obj = jsonArray.getJSONObject(i)
-                                newHistory.add(HistoryRecord(
-                                    temp = obj.getDouble("temp").toFloat(),
-                                    hum = obj.getDouble("hum").toFloat()
-                                ))
-                            }
-                            withContext(Dispatchers.Main) {
-                                history = newHistory
-                            }
-                        }
-                    }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         status = "Erro de ligação (O ESP32 está ligado?)."
@@ -546,17 +441,8 @@ fun DashboardScreen(
             DataCard(title = "Luminosidade", value = "$luminosidade lx", iconColor = Color(0xFFFFA500))
             Spacer(modifier = Modifier.height(20.dp))
             DataCard(title = "Humidade do Solo", value = "$humidade %", iconColor = Color.Blue)
-            Spacer(modifier = Modifier.height(20.dp))
-            DataCard(title = "Bomba de Água", value = estadoBomba, iconColor = Color(0xFF9B59B6))
 
             Spacer(modifier = Modifier.height(40.dp))
-
-            if (history.isNotEmpty()) {
-                Text(text = "Histórico", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Gray)
-                Spacer(modifier = Modifier.height(10.dp))
-                HistoryChart(history)
-                Spacer(modifier = Modifier.height(20.dp))
-            }
 
             if (status == "A aguardar dados...") {
                 CircularProgressIndicator(
@@ -573,6 +459,88 @@ fun DashboardScreen(
                 fontSize = 14.sp
             )
         }
+    }
+}
+
+@Composable
+fun ChartsScreen() {
+    var history by remember { mutableStateOf<List<HistoryRecord>>(emptyList()) }
+    var status by remember { mutableStateOf("A aguardar dados do histórico...") }
+
+    val client = remember {
+        OkHttpClient.Builder()
+            .connectTimeout(3, TimeUnit.SECONDS)
+            .readTimeout(3, TimeUnit.SECONDS)
+            .build()
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val histRequest = Request.Builder()
+                        .url("http://192.168.4.1/history")
+                        .build()
+
+                    client.newCall(histRequest).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val jsonString = response.body?.string() ?: "[]"
+                            val jsonArray = JSONArray(jsonString)
+                            val newHistory = mutableListOf<HistoryRecord>()
+                            for (i in 0 until jsonArray.length()) {
+                                val obj = jsonArray.getJSONObject(i)
+                                newHistory.add(HistoryRecord(
+                                    temp = obj.getDouble("temp").toFloat(),
+                                    hum = obj.getDouble("hum").toFloat()
+                                ))
+                            }
+                            withContext(Dispatchers.Main) {
+                                history = newHistory
+                                status = "Atualizado"
+                            }
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                status = "Erro: Servidor retornou ${response.code}"
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        status = "Erro de ligação (O ESP32 está ligado?)."
+                    }
+                }
+            }
+            delay(5000)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Gráficos de Histórico", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+        Spacer(modifier = Modifier.height(30.dp))
+
+        if (history.isNotEmpty()) {
+            HistoryChart(history)
+        } else if (status == "A aguardar dados do histórico...") {
+            CircularProgressIndicator(
+                color = Color(0xFF4CAF50),
+                modifier = Modifier.size(30.dp)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(
+            text = status,
+            color = if (status == "Atualizado") Color(0xFF4CAF50) else Color.Red,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+        )
     }
 }
 
