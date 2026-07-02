@@ -207,6 +207,20 @@ class PlantMonitorApp(ctk.CTk):
         self.notifications_enabled = ctk.BooleanVar(value=True)
         self.max_temp_var = ctk.StringVar(value="30")
         self.min_hum_var = ctk.StringVar(value="30")
+        self.bomba_hum_var = ctk.StringVar(value="30")
+        self.bomba_temp_var = ctk.StringVar(value="30")
+
+        # Load auto pump settings from ESP32
+        def fetch_bomba_settings():
+            try:
+                resp = requests.get(f"{URL}get_bomba_config", timeout=3)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    self.bomba_hum_var.set(str(data.get("limiteBombaHumidade", 30)))
+                    self.bomba_temp_var.set(str(data.get("limiteBombaTemperatura", 30)))
+            except Exception:
+                pass
+        threading.Thread(target=fetch_bomba_settings, daemon=True).start()
 
         self.settings_title = ctk.CTkLabel(self.tab_settings, text="Configurações de Notificação", font=ctk.CTkFont(size=18, weight="bold"))
         self.settings_title.pack(pady=20)
@@ -231,6 +245,18 @@ class PlantMonitorApp(ctk.CTk):
         self.min_hum_entry = ctk.CTkEntry(self.limits_frame, textvariable=self.min_hum_var, width=60)
         self.min_hum_entry.grid(row=1, column=1, padx=10, pady=10)
 
+        lbl_bomba_hum = ctk.CTkLabel(self.limits_frame, text="Ligar Bomba se Humidade < (%):")
+        lbl_bomba_hum.grid(row=2, column=0, padx=10, pady=10)
+
+        self.bomba_hum_entry = ctk.CTkEntry(self.limits_frame, textvariable=self.bomba_hum_var, width=60)
+        self.bomba_hum_entry.grid(row=2, column=1, padx=10, pady=10)
+
+        lbl_bomba_temp = ctk.CTkLabel(self.limits_frame, text="Ligar Bomba se Temperatura > (°C):")
+        lbl_bomba_temp.grid(row=3, column=0, padx=10, pady=10)
+
+        self.bomba_temp_entry = ctk.CTkEntry(self.limits_frame, textvariable=self.bomba_temp_var, width=60)
+        self.bomba_temp_entry.grid(row=3, column=1, padx=10, pady=10)
+
         self.save_button = ctk.CTkButton(self.tab_settings, text="Guardar Configurações", command=self.save_settings)
         self.save_button.pack(pady=20)
 
@@ -250,6 +276,16 @@ class PlantMonitorApp(ctk.CTk):
         try:
             float(self.max_temp_var.get())
             float(self.min_hum_var.get())
+
+            b_hum = int(self.bomba_hum_var.get())
+            b_temp = int(self.bomba_temp_var.get())
+
+            def send_bomba_settings():
+                try:
+                    requests.get(f"{URL}set_bomba_config?hum={b_hum}&temp={b_temp}", timeout=3)
+                except Exception:
+                    pass
+            threading.Thread(target=send_bomba_settings, daemon=True).start()
 
             self.save_label.configure(text="Configurações guardadas com sucesso!", text_color="green")
         except ValueError as e:
