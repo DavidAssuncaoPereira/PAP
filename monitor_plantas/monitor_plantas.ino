@@ -261,6 +261,27 @@ void enviarPaginaWeb() {
 }
 
 // -----------------------------------------------------
+void processarGetBombaConfig() {
+  String json = "{";
+  json += "\"limiteBombaHumidade\":" + String(limiteBombaHumidade) + ",";
+  json += "\"limiteBombaTemperatura\":" + String(limiteBombaTemperatura);
+  json += "}";
+  server.send(200, "application/json", json);
+}
+
+// -----------------------------------------------------
+void processarSetBombaConfig() {
+  if (server.hasArg("hum")) {
+    limiteBombaHumidade = server.arg("hum").toInt();
+  }
+  if (server.hasArg("temp")) {
+    limiteBombaTemperatura = server.arg("temp").toInt();
+  }
+  gravarHistoricoEEPROM();
+  server.send(200, "text/plain", "OK");
+}
+
+// -----------------------------------------------------
 void processarToggleBomba() {
   if (server.hasArg("modo")) {
     String modo = server.arg("modo");
@@ -342,6 +363,8 @@ void setup() {
   server.on("/", enviarPaginaWeb);
   server.on("/history", enviarHistoricoJSON);
   server.on("/toggle_bomba", processarToggleBomba);
+  server.on("/get_bomba_config", processarGetBombaConfig);
+  server.on("/set_bomba_config", processarSetBombaConfig);
   server.begin();
   Serial.println("Servidor HTTP iniciado.");
 

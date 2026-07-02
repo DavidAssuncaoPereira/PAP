@@ -17,6 +17,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import android.graphics.Paint
+import android.graphics.Color as AndroidColor
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
@@ -37,6 +40,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
+import org.json.JSONObject
 import java.util.regex.Pattern
 import java.util.concurrent.TimeUnit
 
@@ -111,6 +115,30 @@ fun MainScreen() {
     var maxTempThreshold by remember { mutableStateOf(sharedPrefs.getString("maxTempThreshold", "30.0") ?: "30.0") }
     var minHumThreshold by remember { mutableStateOf(sharedPrefs.getString("minHumThreshold", "30.0") ?: "30.0") }
 
+    // Configurações bomba (lidas do ESP32)
+    var bombaHumThreshold by remember { mutableStateOf("30") }
+    var bombaTempThreshold by remember { mutableStateOf("30") }
+
+    val coroutineScope = rememberCoroutineScope()
+    val httpClient = remember { OkHttpClient.Builder().connectTimeout(3, TimeUnit.SECONDS).build() }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val req = Request.Builder().url("http://192.168.4.1/get_bomba_config").build()
+                httpClient.newCall(req).execute().use { res ->
+                    if (res.isSuccessful) {
+                        val json = JSONObject(res.body?.string() ?: "{}")
+                        withContext(Dispatchers.Main) {
+                            bombaHumThreshold = json.optInt("limiteBombaHumidade", 30).toString()
+                            bombaTempThreshold = json.optInt("limiteBombaTemperatura", 30).toString()
+                        }
+                    }
+                }
+            } catch (e: Exception) { }
+        }
+    }
+
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
@@ -158,6 +186,20 @@ fun MainScreen() {
                     onMinHumChange = {
                         minHumThreshold = it
                         sharedPrefs.edit().putString("minHumThreshold", it).apply()
+                    },
+                    bombaHumThreshold = bombaHumThreshold,
+                    onBombaHumChange = { bombaHumThreshold = it },
+                    bombaTempThreshold = bombaTempThreshold,
+                    onBombaTempChange = { bombaTempThreshold = it },
+                    onSaveBombaConfig = {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                val req = Request.Builder()
+                                    .url("http://192.168.4.1/set_bomba_config?hum=$bombaHumThreshold&temp=$bombaTempThreshold")
+                                    .build()
+                                httpClient.newCall(req).execute().use { }
+                            } catch (e: Exception) {}
+                        }
                     }
                 )
             } else if (selectedTab == 2) {
@@ -174,9 +216,13 @@ fun SettingsScreen(
     maxTempThreshold: String,
     onMaxTempChange: (String) -> Unit,
     minHumThreshold: String,
-    onMinHumChange: (String) -> Unit
+    onMinHumChange: (String) -> Unit,
+    bombaHumThreshold: String,
+    onBombaHumChange: (String) -> Unit,
+    bombaTempThreshold: String,
+    onBombaTempChange: (String) -> Unit,
+    onSaveBombaConfig: () -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -218,6 +264,37 @@ fun SettingsScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth()
         )
+
+        Spacer(modifier = Modifier.height(30.dp))
+        Text("Limites Auto Bomba", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(modifier = Modifier.height(10.dp))
+
+        OutlinedTextField(
+            value = bombaHumThreshold,
+            onValueChange = onBombaHumChange,
+            label = { Text("Ligar Bomba se Humidade < (%)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        OutlinedTextField(
+            value = bombaTempThreshold,
+            onValueChange = onBombaTempChange,
+            label = { Text("Ligar Bomba se Temperatura > (°C)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Button(
+            onClick = onSaveBombaConfig,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+        ) {
+            Text("Guardar Limites Bomba")
+        }
     }
 }
 
@@ -600,6 +677,40 @@ fun HistoryChart(history: List<HistoryRecord>) {
 
                 val maxTemp = Math.max(history.maxOf { it.temp }, 40f)
                 val maxHum = 100f
+
+                val paintGrelha = Paint().apply {
+                    color = AndroidColor.LTGRAY
+                    strokeWidth = 1f
+                    style = Paint.Style.STROKE
+                    pathEffect = android.graphics.DashPathEffect(floatArrayOf(10f, 10f), 0f)
+                }
+
+                val paintTextoTemp = Paint().apply {
+                    color = AndroidColor.parseColor("#FF5555")
+                    textSize = 30f
+                }
+
+                val paintTextoHum = Paint().apply {
+                    color = AndroidColor.parseColor("#55AAFF")
+                    textSize = 30f
+                    textAlign = Paint.Align.RIGHT
+                }
+
+                drawContext.canvas.nativeCanvas.apply {
+                    // Desenhar linhas de grelha horizontais
+                    val stepY = height / 4
+                    for (i in 0..4) {
+                        val y = i * stepY
+                        drawLine(0f, y, width, y, paintGrelha)
+
+                        // Rotulos Temperatura (esq) e Humidade (dir)
+                        val tempVal = maxTemp - (i * (maxTemp / 4))
+                        val humVal = maxHum - (i * (maxHum / 4))
+
+                        drawText("${tempVal.toInt()}°", 0f, y - 5f, paintTextoTemp)
+                        drawText("${humVal.toInt()}%", width, y - 5f, paintTextoHum)
+                    }
+                }
 
                 val tempPath = Path()
                 val humPath = Path()
